@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import type { ApiRequest, ApiResponse, Context } from '@iii-dev/sdk'
-import { state } from '../hooks.js'
+import type { ApiRequest, ApiResponse, Context } from 'iii-sdk'
+import { state } from '../state.js'
 
 type CreateSessionBody = {
   model?: string
@@ -17,7 +17,7 @@ type Session = {
 
 export const handleCreateSession = async (
   req: ApiRequest<CreateSessionBody>,
-  ctx: Context
+  ctx: Context,
 ): Promise<ApiResponse> => {
   const sessionId = randomUUID()
   const model = req.body?.model ?? 'sonnet'
@@ -28,7 +28,7 @@ export const handleCreateSession = async (
     const initResponse = await runClaude(
       'You are a helpful assistant. Session initialized. Respond with: "Ready."',
       sessionId,
-      model
+      model,
     )
 
     const session: Session = {
@@ -39,7 +39,7 @@ export const handleCreateSession = async (
       messageCount: 0,
     }
 
-    await state.set('sessions', sessionId, session)
+    await state.set({ scope: 'sessions', key: sessionId, data: session })
 
     ctx.logger.info(`Session ${sessionId} created successfully`)
 

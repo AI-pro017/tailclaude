@@ -8,7 +8,7 @@
     "start": "node --loader tsx src/index.ts"
   },
   "dependencies": {
-    "@iii-dev/sdk": "file:../iii-engine-1/packages/node/iii"
+    "iii-sdk": "file:../iii-sdk-latest/packages/node/iii"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",

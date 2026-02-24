@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
-import type { ApiRequest, ApiResponse, Context } from '@iii-dev/sdk'
-import { state } from '../hooks.js'
+import type { ApiRequest, ApiResponse, Context } from 'iii-sdk'
+import { state } from '../state.js'
 
 type ChatBody = {
   sessionId: string
@@ -17,7 +17,7 @@ type Session = {
 
 export const handleSendMessage = async (
   req: ApiRequest<ChatBody>,
-  ctx: Context
+  ctx: Context,
 ): Promise<ApiResponse> => {
   const { sessionId, message } = req.body ?? {}
 
@@ -29,7 +29,7 @@ export const handleSendMessage = async (
     }
   }
 
-  const session = await state.get<Session>('sessions', sessionId)
+  const session = await state.get<Session>({ scope: 'sessions', key: sessionId })
   if (!session) {
     return {
       status_code: 404,
@@ -44,12 +44,16 @@ export const handleSendMessage = async (
   try {
     const raw = await runClaude(message, sessionId, session.model)
     const duration = Date.now() - start
-    const parsed = parseCloudeResponse(raw)
+    const parsed = parseClaudeResponse(raw)
 
-    await state.set('sessions', sessionId, {
-      ...session,
-      lastUsed: new Date().toISOString(),
-      messageCount: session.messageCount + 1,
+    await state.set({
+      scope: 'sessions',
+      key: sessionId,
+      data: {
+        ...session,
+        lastUsed: new Date().toISOString(),
+        messageCount: session.messageCount + 1,
+      },
     })
 
     ctx.logger.info(`[${sessionId}] Response in ${duration}ms`)
@@ -66,13 +70,13 @@ export const handleSendMessage = async (
       },
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    ctx.logger.error(`[${sessionId}] Error: ${message}`)
+    const detail = err instanceof Error ? err.message : String(err)
+    ctx.logger.error(`[${sessionId}] Error: ${detail}`)
 
     return {
       status_code: 500,
       headers: { 'content-type': 'application/json' },
-      body: { error: 'Claude invocation failed', detail: message },
+      body: { error: 'Claude invocation failed', detail },
     }
   }
 }
@@ -96,7 +100,7 @@ function runClaude(prompt: string, sessionId: string, model: string): Promise<st
   })
 }
 
-function parseCloudeResponse(raw: string): { text: string; toolsUsed: string[]; cost: string | null } {
+function parseClaudeResponse(raw: string): { text: string; toolsUsed: string[]; cost: string | null } {
   try {
     const parsed = JSON.parse(raw)
     return {

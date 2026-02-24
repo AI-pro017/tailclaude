@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
-import type { Context } from '@iii-dev/sdk'
-import { state } from '../hooks.js'
+import type { Context } from 'iii-sdk'
+import { state } from '../state.js'
 
 export const handleEngineStarted = async (_data: unknown, ctx: Context): Promise<void> => {
   ctx.logger.info('Engine started — checking Tailscale status')
@@ -9,9 +9,10 @@ export const handleEngineStarted = async (_data: unknown, ctx: Context): Promise
     const ip = await runCommand('tailscale', ['ip', '-4'])
     ctx.logger.info(`Tailscale IP: ${ip.trim()}`)
 
-    await state.set('config', 'tailscale', {
-      ip: ip.trim(),
-      connectedAt: new Date().toISOString(),
+    await state.set({
+      scope: 'config',
+      key: 'tailscale',
+      data: { ip: ip.trim(), connectedAt: new Date().toISOString() },
     })
 
     await publishToTailscale(ctx)
@@ -25,14 +26,20 @@ export const handleEngineStarted = async (_data: unknown, ctx: Context): Promise
 async function publishToTailscale(ctx: Context): Promise<void> {
   try {
     await runCommand('tailscale', ['serve', '--bg', '--yes', '--https=443', 'http://127.0.0.1:3111'])
-    const status = await runCommand('tailscale', ['status', '--json'])
-    const parsed = JSON.parse(status)
+    const statusJson = await runCommand('tailscale', ['status', '--json'])
+    const parsed = JSON.parse(statusJson)
     const hostname = parsed.Self?.HostName ?? 'unknown'
-    const url = `https://${hostname}.tail${parsed.Self?.DNSName?.split('.').slice(-3, -1).join('.') ?? 'net'}`
+    const dnsParts = parsed.Self?.DNSName?.split('.').slice(-3, -1).join('.') ?? 'net'
+    const url = `https://${hostname}.tail${dnsParts}`
 
-    await state.set('config', 'published_url', { url, publishedAt: new Date().toISOString() })
+    await state.set({
+      scope: 'config',
+      key: 'published_url',
+      data: { url, publishedAt: new Date().toISOString() },
+    })
+
     ctx.logger.info(`Published to Tailscale: ${url}`)
-    ctx.logger.info(`Access TailClaude from any device on your tailnet`)
+    ctx.logger.info('Access TailClaude from any device on your tailnet')
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     ctx.logger.warn(`Failed to publish via tailscale serve: ${msg}`)

@@ -117,11 +117,12 @@ open http://localhost:3111
 ```
 tailclaude/
 ├── iii-config.yaml              # iii engine configuration
-├── package.json                 # dependencies (@iii-dev/sdk)
+├── package.json                 # dependencies (iii-sdk)
 ├── tsconfig.json
 └── src/
-    ├── bridge.ts                # WebSocket connection to iii engine
-    ├── hooks.ts                 # useApi, useEvent, useCron, state helpers
+    ├── iii.ts                   # SDK init (iii-sdk init() with OTel config)
+    ├── hooks.ts                 # useApi, useEvent, useCron helpers
+    ├── state.ts                 # State wrapper (scope/key API via iii.call)
     ├── index.ts                 # Register all routes + handlers
     ├── ui.html                  # Chat UI (single file, inline CSS/JS)
     └── handlers/

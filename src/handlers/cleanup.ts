@@ -1,5 +1,5 @@
-import type { Context } from '@iii-dev/sdk'
-import { state } from '../hooks.js'
+import type { Context } from 'iii-sdk'
+import { state } from '../state.js'
 
 type Session = {
   id: string
@@ -12,14 +12,14 @@ type Session = {
 const MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 export const handleCleanup = async (ctx: Context): Promise<void> => {
-  const sessions = await state.list<Session>('sessions')
+  const sessions = await state.list<Session>({ scope: 'sessions' })
   const now = Date.now()
   let removed = 0
 
   for (const session of sessions) {
     const age = now - new Date(session.lastUsed).getTime()
     if (age > MAX_AGE_MS) {
-      await state.delete('sessions', session.id)
+      await state.delete({ scope: 'sessions', key: session.id })
       removed++
     }
   }

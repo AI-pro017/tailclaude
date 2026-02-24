@@ -1,4 +1,4 @@
-import type { ApiRequest, ApiResponse } from '@iii-dev/sdk'
+import type { ApiRequest, ApiResponse } from 'iii-sdk'
 
 export const handleHealth = async (_req: ApiRequest): Promise<ApiResponse> => {
   return {
