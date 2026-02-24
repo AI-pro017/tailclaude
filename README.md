@@ -78,8 +78,8 @@ Both approaches use Tailscale for secure access. TailClaude just removes everyth
 1. **iii engine** runs the state store, event bus, and cron scheduler
 2. **TailClaude worker** connects via WebSocket and registers event handlers
 3. **Node.js proxy** (port 3110) serves the UI and handles all endpoints directly
-4. `POST /chat` spawns `claude -p --output-format stream-json --verbose` and streams tokens via SSE
-5. `GET /sessions` discovers all sessions from `~/.claude/projects/` with conversation metadata
+4. `POST /chat` spawns `claude -p --output-format stream-json --verbose` and streams tokens via SSE — parses `type: "assistant"` events for text, tools, and live token usage, and `type: "result"` for final cost
+5. `GET /sessions` discovers all sessions from `~/.claude/projects/` with slug names, relative timestamps, and accurate message counts
 6. `GET /sessions/:id` loads full conversation history (user messages, assistant responses, tool use)
 7. On engine start, auto-publishes to your tailnet via `tailscale serve` and prints a terminal QR code
 8. On shutdown (Ctrl+C), unpublishes from Tailscale and exits cleanly
@@ -150,10 +150,11 @@ curl http://localhost:3110/qr
 
 ### Streaming & Chat
 - **Real-time SSE streaming** — tokens appear as Claude generates them
-- **Stop button** — abort mid-response (kills the claude process)
-- **Inline markdown** rendering (code blocks, bold, italic, lists)
-- **Cost tracking** per message and cumulative
-- **Tool use badges** on assistant responses
+- **Stop button** — abort mid-response with visual feedback (kills the claude process)
+- **Inline Markdown** rendering (code blocks, bold, italic, lists)
+- **Live token counter** — input/output tokens update as Claude streams (`4,521 in / 892 out`)
+- **Cost tracking** — per-message cost displayed on completion (`$0.0123 · 4,521 in / 892 out`)
+- **Tool use badges** — appear in real-time as Claude invokes tools, even before text arrives
 
 ### Session Management
 - **Session discovery** — browse ALL Claude Code sessions (terminal + web)
@@ -177,7 +178,7 @@ curl http://localhost:3110/qr
 - **Mobile-first** — hamburger menu, touch-optimized, responsive layout
 - **Dark theme** with purple accents
 - **Connection status** with auto-reconnect polling
-- **Auth support** — set `TAILCLAUDE_TOKEN` env var to require bearer token
+- **Auth support** — set `TAILCLAUDE_TOKEN` env var to require bearer token (stripped from child processes)
 
 ## Project Structure
 
@@ -192,7 +193,7 @@ tailclaude/
     ├── state.ts                 # State wrapper (scope/key API via iii.call)
     ├── proxy.ts                 # HTTP proxy: SSE chat, sessions, history, QR, settings, health
     ├── index.ts                 # Register health route + event + cron + proxy
-    ├── ui.html                  # Chat UI (single file, inline CSS/JS, ~900 lines)
+    ├── ui.html                  # Chat UI (single file, inline CSS/JS, ~980 lines)
     └── handlers/
         ├── health.ts            # GET /health via iii (Tailscale + session status)
         ├── setup.ts             # Tailscale auto-publish with terminal QR code
