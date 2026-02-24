@@ -6,7 +6,7 @@ import {
   closeSync,
   existsSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { homedir } from "node:os";
 import { state } from "./state.js";
 import { emit } from "./hooks.js";
@@ -65,10 +65,14 @@ async function doIndexSessions(): Promise<void> {
             let cwd: string | undefined;
 
             const fd = openSync(filePath, "r");
-            const buf = Buffer.alloc(8192);
-            const bytesRead = readSync(fd, buf, 0, 8192, 0);
-            closeSync(fd);
-            const head = buf.toString("utf-8", 0, bytesRead);
+            let head: string;
+            try {
+              const buf = Buffer.alloc(8192);
+              const bytesRead = readSync(fd, buf, 0, 8192, 0);
+              head = buf.toString("utf-8", 0, bytesRead);
+            } finally {
+              closeSync(fd);
+            }
             const lines = head.split("\n").filter((l: string) => l.trim());
 
             for (const line of lines) {
@@ -76,8 +80,7 @@ async function doIndexSessions(): Promise<void> {
                 const parsed = JSON.parse(line);
                 if (parsed.cwd && !cwd) {
                   cwd = parsed.cwd;
-                  if (!project)
-                    project = parsed.cwd.split("/").pop() || project;
+                  if (!project) project = basename(parsed.cwd) || project;
                 }
                 if (parsed.slug && !slug) slug = parsed.slug;
                 const role = parsed.message?.role;

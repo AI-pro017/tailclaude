@@ -57,8 +57,9 @@ const ALLOWED_EFFORTS = new Set(["low", "medium", "high"]);
 
 let engineConnected = false;
 let engineConnectionState = "disconnected";
+let unsubEngineState: (() => void) | undefined;
 
-onEngineConnectionStateChange((s) => {
+unsubEngineState = onEngineConnectionStateChange((s) => {
   engineConnected = s === "connected";
   engineConnectionState = s;
   logger.info("Engine connection state changed", { state: s });
@@ -245,24 +246,36 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
           effort,
         });
 
-        await emit("chat::started", {
-          requestId,
-          sessionId: body.sessionId || null,
-          model,
-          mode,
-          effort,
-        });
-
-        await state.set({
-          scope: "active_chats",
-          key: requestId,
-          data: {
+        try {
+          emit("chat::started", {
+            requestId,
             sessionId: body.sessionId || null,
             model,
-            startedAt: new Date().toISOString(),
-            pid: null as number | null,
-          },
-        });
+            mode,
+            effort,
+          });
+        } catch (e) {
+          logger.error("Failed to emit chat::started", {
+            error: (e as Error)?.message,
+          });
+        }
+
+        try {
+          await state.set({
+            scope: "active_chats",
+            key: requestId,
+            data: {
+              sessionId: body.sessionId || null,
+              model,
+              startedAt: new Date().toISOString(),
+              pid: null as number | null,
+            },
+          });
+        } catch (e) {
+          logger.error("Failed to set active_chats state", {
+            error: (e as Error)?.message,
+          });
+        }
 
         res.writeHead(200, {
           ...corsHeaders(),
@@ -308,6 +321,7 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
           .catch(() => {});
 
         const startTime = Date.now();
+        let clientDisconnected = false;
 
         res.write(
           `data: ${JSON.stringify({ type: "request_id", requestId })}\n\n`,
@@ -319,6 +333,17 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
         let totalCost = 0;
         let inputTokens = 0;
         let outputTokens = 0;
+
+        function safeWrite(data: string): boolean {
+          if (clientDisconnected || res.writableEnded || res.destroyed)
+            return false;
+          try {
+            res.write(data);
+            return true;
+          } catch {
+            return false;
+          }
+        }
 
         child.stdout.on("data", (chunk: Buffer) => {
           lineBuffer += chunk.toString();
@@ -340,7 +365,7 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
               }
 
               writeChatEvent(requestId, eventIndex++, event);
-              res.write(`data: ${JSON.stringify(event)}\n\n`);
+              safeWrite(`data: ${JSON.stringify(event)}\n\n`);
             } catch {
               // skip unparseable lines
             }
@@ -352,7 +377,7 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
           if (text) {
             const errEvent = { type: "error", error: text };
             writeChatEvent(requestId, eventIndex++, errEvent);
-            res.write(`data: ${JSON.stringify(errEvent)}\n\n`);
+            safeWrite(`data: ${JSON.stringify(errEvent)}\n\n`);
           }
         });
 
@@ -369,7 +394,7 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
                 outputTokens = event.output_tokens ?? outputTokens;
               }
               writeChatEvent(requestId, eventIndex++, event);
-              res.write(`data: ${JSON.stringify(event)}\n\n`);
+              safeWrite(`data: ${JSON.stringify(event)}\n\n`);
             } catch {
               // skip
             }
@@ -394,7 +419,11 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
             exitCode: code,
           });
 
-          state.delete({ scope: "active_chats", key: requestId });
+          state.delete({ scope: "active_chats", key: requestId }).catch((e) => {
+            logger.error("Failed to delete active_chats", {
+              error: (e as Error)?.message,
+            });
+          });
 
           emit("chat::completed", {
             requestId,
@@ -408,37 +437,54 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
 
           deleteChatGroup(requestId);
 
-          res.write(
-            `event: done\ndata: ${JSON.stringify({
-              sessionId: lastSessionId,
-              duration,
-              exitCode: code,
-            })}\n\n`,
-          );
-          res.end();
+          if (
+            safeWrite(
+              `event: done\ndata: ${JSON.stringify({
+                sessionId: lastSessionId,
+                duration,
+                exitCode: code,
+              })}\n\n`,
+            )
+          ) {
+            res.end();
+          }
         });
 
         child.on("error", (err) => {
           activeProcesses.delete(requestId);
-          state.delete({ scope: "active_chats", key: requestId });
+          state.delete({ scope: "active_chats", key: requestId }).catch((e) => {
+            logger.error("Failed to delete active_chats on error", {
+              error: (e as Error)?.message,
+            });
+          });
+          deleteChatGroup(requestId);
 
           span.setAttribute("chat.error", err.message);
+          span.setAttribute("chat.status", "error");
           logger.error("Chat failed", { requestId, error: err.message });
 
-          res.write(
-            `data: ${JSON.stringify({ type: "error", error: err.message })}\n\n`,
-          );
-          res.write(
-            `event: done\ndata: ${JSON.stringify({ error: err.message })}\n\n`,
-          );
-          res.end();
+          emit("chat::stopped", { requestId, reason: "spawn_error" });
+
+          if (
+            safeWrite(
+              `data: ${JSON.stringify({ type: "error", error: err.message })}\n\n`,
+            )
+          ) {
+            safeWrite(
+              `event: done\ndata: ${JSON.stringify({ error: err.message })}\n\n`,
+            );
+            res.end();
+          }
         });
 
         req.on("close", () => {
+          clientDisconnected = true;
           if (!child.killed && child.exitCode === null) {
             child.kill("SIGTERM");
             activeProcesses.delete(requestId);
-            state.delete({ scope: "active_chats", key: requestId });
+            state
+              .delete({ scope: "active_chats", key: requestId })
+              .catch(() => {});
 
             logger.info("Chat stopped (client disconnect)", { requestId });
             emit("chat::stopped", { requestId, reason: "client_disconnect" });
@@ -469,7 +515,9 @@ function handleStopChat(req: IncomingMessage, res: ServerResponse): void {
         if (child && !child.killed) {
           child.kill("SIGTERM");
           activeProcesses.delete(requestId);
-          state.delete({ scope: "active_chats", key: requestId });
+          state
+            .delete({ scope: "active_chats", key: requestId })
+            .catch(() => {});
 
           logger.info("Chat stopped by user", { requestId });
           emit("chat::stopped", { requestId, reason: "user" });
@@ -901,6 +949,10 @@ export function startProxy(): Promise<void> {
 export function stopProxy(): Promise<void> {
   return new Promise((resolve) => {
     metricsCollector.stopMonitoring();
+    if (unsubEngineState) {
+      unsubEngineState();
+      unsubEngineState = undefined;
+    }
     if (server) {
       server.close(() => resolve());
     } else {

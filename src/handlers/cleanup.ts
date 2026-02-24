@@ -38,7 +38,14 @@ export const handleCleanup = async (_ctx: Context): Promise<void> => {
   let removedSessionIndex = 0;
   let removedStreams = 0;
 
-  const sessions = await state.list<Session>({ scope: "sessions" });
+  let sessions: Session[] = [];
+  try {
+    sessions = await state.list<Session>({ scope: "sessions" });
+  } catch (err) {
+    logger.warn("Failed to list sessions for cleanup", {
+      error: (err as Error)?.message,
+    });
+  }
   const now = Date.now();
 
   for (const session of sessions) {
@@ -50,11 +57,14 @@ export const handleCleanup = async (_ctx: Context): Promise<void> => {
   }
 
   try {
-    const activeChats = await state.list<ActiveChat & { key?: string; id?: string }>({
+    const activeChats = await state.list<
+      ActiveChat & { key?: string; id?: string }
+    >({
       scope: "active_chats",
     });
     for (const chat of activeChats) {
       const key = chat.key || chat.id || "";
+      if (!key) continue;
       if (chat.pid && !isProcessRunning(chat.pid)) {
         await state.delete({ scope: "active_chats", key });
         removedActiveChats++;
@@ -72,7 +82,8 @@ export const handleCleanup = async (_ctx: Context): Promise<void> => {
 
   removedStreams = cleanupStaleStreams();
 
-  const total = removedSessions + removedActiveChats + removedSessionIndex + removedStreams;
+  const total =
+    removedSessions + removedActiveChats + removedSessionIndex + removedStreams;
 
   if (total > 0) {
     logger.info("Cleanup completed", {

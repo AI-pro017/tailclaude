@@ -12,9 +12,19 @@ const store = new Map<string, Map<string, ChatEvent>>();
 const TTL_MS = 30 * 60 * 1000;
 const MAX_GROUPS = 100;
 
+function refreshGroup(group_id: string): Map<string, ChatEvent> | undefined {
+  const group = store.get(group_id);
+  if (group) {
+    store.delete(group_id);
+    store.set(group_id, group);
+  }
+  return group;
+}
+
 const chatStream: IStream<ChatEvent> = {
   async get({ group_id, item_id }) {
-    return store.get(group_id)?.get(item_id) ?? null;
+    const group = refreshGroup(group_id);
+    return group?.get(item_id) ?? null;
   },
 
   async set({ group_id, item_id, data }) {
@@ -24,6 +34,8 @@ const chatStream: IStream<ChatEvent> = {
         if (oldest) store.delete(oldest);
       }
       store.set(group_id, new Map());
+    } else {
+      refreshGroup(group_id);
     }
     const group = store.get(group_id)!;
     const old = group.get(item_id) ?? null;
