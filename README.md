@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="TailClaude — Claude Code from any browser" width="100%" />
+</p>
+
 # TailClaude
 
 **Claude Code from any browser. No SSH. No terminal. Just a URL.**
