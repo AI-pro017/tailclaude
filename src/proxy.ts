@@ -178,7 +178,7 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
         body.message,
         "--output-format",
         "stream-json",
-        "--include-partial-messages",
+        "--verbose",
       ];
 
       if (body.sessionId) {
