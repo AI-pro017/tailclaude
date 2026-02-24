@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { stopProxy } from "../proxy.js";
 
 const TAILSCALE_CLI =
   process.platform === "darwin"
@@ -35,7 +36,7 @@ async function shutdown(signal: string): Promise<void> {
   forceExit.unref();
 
   try {
-    await unpublishTailscale();
+    await Promise.all([unpublishTailscale(), stopProxy()]);
   } catch {
     // best-effort cleanup
   }

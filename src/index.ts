@@ -4,15 +4,15 @@ import { handleHealth } from "./handlers/health.js";
 import { handleCreateSession } from "./handlers/create-session.js";
 import { handleSendMessage } from "./handlers/send-message.js";
 import { handleListSessions } from "./handlers/list-sessions.js";
-import { handleServeUI } from "./handlers/serve-ui.js";
 import { handleEngineStarted } from "./handlers/setup.js";
 import { handleCleanup } from "./handlers/cleanup.js";
 import { registerShutdownHandlers } from "./handlers/shutdown.js";
+import { startProxy } from "./proxy.js";
 
-useApi(
-  { api_path: "/", http_method: "GET", description: "Serve chat UI" },
-  handleServeUI,
-);
+startProxy().catch((err) => {
+  console.error(`Failed to start UI proxy: ${err.message}`);
+});
+
 useApi(
   { api_path: "health", http_method: "GET", description: "Health check" },
   handleHealth,

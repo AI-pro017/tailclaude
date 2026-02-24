@@ -7,7 +7,7 @@ const TAILSCALE_CLI =
     ? "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
     : "tailscale";
 
-const TARGET = "http://127.0.0.1:3111";
+const TARGET = "http://127.0.0.1:3110";
 
 export const handleEngineStarted = async (
   _data: unknown,
@@ -29,7 +29,7 @@ export const handleEngineStarted = async (
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ctx.logger.warn(`Tailscale not available: ${msg}`);
-    ctx.logger.info("Running in local-only mode at http://127.0.0.1:3111");
+    ctx.logger.info("Running in local-only mode at http://127.0.0.1:3110");
 
     await state.set({
       scope: "config",
@@ -73,14 +73,19 @@ async function publishToTailscale(ctx: Context): Promise<void> {
   ctx.logger.info("Access TailClaude from any device on your tailnet");
 }
 
+function matchesProxyTarget(json: string): boolean {
+  return (
+    json.includes("3110") || json.includes("3111") || json.includes(TARGET)
+  );
+}
+
 async function checkExistingServe(): Promise<boolean> {
   try {
     const raw = await runCommand("tailscale", ["serve", "status", "--json"]);
     const status = JSON.parse(raw);
     const tcp = status?.TCP ?? status?.Web;
     if (!tcp) return false;
-    const handlers = JSON.stringify(tcp);
-    return handlers.includes("3111") || handlers.includes(TARGET);
+    return matchesProxyTarget(JSON.stringify(tcp));
   } catch {
     return false;
   }
@@ -122,8 +127,7 @@ async function verifyServeStatus(ctx: Context): Promise<boolean> {
     try {
       const raw = await runCommand("tailscale", ["serve", "status", "--json"]);
       const status = JSON.parse(raw);
-      const handlers = JSON.stringify(status);
-      if (handlers.includes("3111") || handlers.includes(TARGET)) {
+      if (matchesProxyTarget(JSON.stringify(status))) {
         ctx.logger.info("Tailscale serve status verified");
         return true;
       }
