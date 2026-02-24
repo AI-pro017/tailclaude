@@ -34,7 +34,7 @@ const CLAUDE_PATH =
     ? `${process.env.HOME}/.local/bin/claude`
     : "claude";
 
-const SESSIONS_DIR = join(homedir(), ".claude", "sessions");
+const PROJECTS_DIR = join(homedir(), ".claude", "projects");
 
 const ALLOWED_MODELS = new Set(["sonnet", "opus", "haiku"]);
 const ALLOWED_MODES = new Set([
@@ -51,6 +51,37 @@ function loadHtml(): string {
     cachedHtml = readFileSync(resolve(__dirname, "ui.html"), "utf-8");
   }
   return cachedHtml;
+}
+
+const TAILSCALE_CLI =
+  process.platform === "darwin"
+    ? "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+    : "tailscale";
+
+function getTailscaleUrl(): Promise<string> {
+  return new Promise((resolve) => {
+    execFile(
+      TAILSCALE_CLI,
+      ["status", "--json"],
+      { timeout: 5000 },
+      (err, stdout) => {
+        if (err) {
+          resolve("https://tailclaude.local");
+          return;
+        }
+        try {
+          const parsed = JSON.parse(stdout);
+          const dnsName = parsed.Self?.DNSName?.replace(/\.$/, "");
+          const hostname = parsed.Self?.HostName ?? "unknown";
+          resolve(
+            dnsName ? `https://${dnsName}` : `https://${hostname}.ts.net`,
+          );
+        } catch {
+          resolve("https://tailclaude.local");
+        }
+      },
+    );
+  });
 }
 
 function cleanEnv(): Record<string, string> {
@@ -335,78 +366,97 @@ interface TerminalSession {
   lastUsed: string;
   project?: string;
   messageCount?: number;
+  slug?: string;
 }
 
 function discoverTerminalSessions(): TerminalSession[] {
   const sessions: TerminalSession[] = [];
 
   try {
-    const entries = readdirSync(SESSIONS_DIR, { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
+    const projects = readdirSync(PROJECTS_DIR, { withFileTypes: true });
+    for (const projEntry of projects) {
+      if (!projEntry.isDirectory()) continue;
 
-      const sessionDir = join(SESSIONS_DIR, entry.name);
+      const projDir = join(PROJECTS_DIR, projEntry.name);
+      const projectName = extractProjectName(projEntry.name);
+
       try {
-        const files = readdirSync(sessionDir);
-        const jsonFiles = files.filter((f) => f.endsWith(".jsonl"));
+        const files = readdirSync(projDir);
+        const jsonlFiles = files.filter(
+          (f) => f.endsWith(".jsonl") && !f.includes("memory"),
+        );
 
-        if (jsonFiles.length === 0) continue;
-
-        let lastModified = new Date(0);
-        let messageCount = 0;
-        let project: string | undefined;
-
-        for (const file of jsonFiles) {
-          const filePath = join(sessionDir, file);
+        for (const file of jsonlFiles) {
+          const filePath = join(projDir, file);
           try {
             const stat = statSync(filePath);
-            if (stat.mtime > lastModified) {
-              lastModified = stat.mtime;
-            }
+            if (stat.size < 50) continue;
+            const sessionId = file.replace(".jsonl", "");
+
+            let project: string | undefined = projectName;
+            let messageCount = 0;
+            let slug: string | undefined;
 
             const fd = openSync(filePath, "r");
-            const buf = Buffer.alloc(4096);
-            const bytesRead = readSync(fd, buf, 0, 4096, 0);
+            const buf = Buffer.alloc(8192);
+            const bytesRead = readSync(fd, buf, 0, 8192, 0);
             closeSync(fd);
             const head = buf.toString("utf-8", 0, bytesRead);
             const lines = head.split("\n").filter((l: string) => l.trim());
-            messageCount += lines.length;
 
-            if (!project) {
-              for (const line of lines.slice(0, 5)) {
-                try {
-                  const parsed = JSON.parse(line);
-                  if (parsed.cwd || parsed.workingDirectory) {
-                    const dir = parsed.cwd || parsed.workingDirectory;
-                    project = dir.split("/").pop();
-                    break;
-                  }
-                } catch {
-                  // skip
+            for (const line of lines) {
+              try {
+                const parsed = JSON.parse(line);
+                if (parsed.cwd && !project) {
+                  project = parsed.cwd.split("/").pop() || project;
                 }
+                if (parsed.slug && !slug) {
+                  slug = parsed.slug;
+                }
+                const role = parsed.message?.role;
+                if (role === "user" || role === "assistant") {
+                  messageCount++;
+                }
+              } catch {
+                // skip
               }
             }
+
+            sessions.push({
+              id: sessionId,
+              source: "terminal",
+              lastUsed: stat.mtime.toISOString(),
+              project,
+              messageCount: messageCount || undefined,
+              slug,
+            });
           } catch {
             // skip unreadable files
           }
         }
-
-        sessions.push({
-          id: entry.name,
-          source: "terminal",
-          lastUsed: lastModified.toISOString(),
-          project,
-          messageCount,
-        });
       } catch {
-        // skip unreadable session dirs
+        // skip unreadable project dirs
       }
     }
   } catch {
-    // sessions directory doesn't exist or is unreadable
+    // projects directory doesn't exist
   }
 
-  return sessions;
+  sessions.sort(
+    (a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime(),
+  );
+
+  return sessions.slice(0, 50);
+}
+
+function extractProjectName(dirName: string): string {
+  const cleaned = dirName.replace(/^-/, "");
+  const parts = cleaned.split("-");
+  if (parts.length <= 2) return parts.pop() || dirName;
+  const meaningful = parts.filter(
+    (p) => p !== "Users" && p !== "private" && p !== "tmp" && p.length > 1,
+  );
+  return meaningful.pop() || parts.pop() || dirName;
 }
 
 function fetchFromEngine(path: string): Promise<string> {
@@ -469,21 +519,120 @@ async function handleSessions(
   res.end(JSON.stringify({ sessions: all, count: all.length }));
 }
 
-async function handleQr(
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  tools?: string[];
+}
+
+function handleSessionHistory(
   _req: IncomingMessage,
   res: ServerResponse,
-): Promise<void> {
-  let url = "https://tailclaude.local";
+  sessionId: string,
+): void {
+  if (!/^[a-f0-9-]{36}$/.test(sessionId)) {
+    jsonError(res, 400, "Invalid session ID");
+    return;
+  }
 
+  let filePath: string | null = null;
   try {
-    const raw = await fetchFromEngine("/health");
-    const parsed = JSON.parse(raw);
-    if (parsed.publishedUrl) {
-      url = parsed.publishedUrl;
+    const projects = readdirSync(PROJECTS_DIR, { withFileTypes: true });
+    for (const proj of projects) {
+      if (!proj.isDirectory()) continue;
+      const candidate = join(PROJECTS_DIR, proj.name, `${sessionId}.jsonl`);
+      try {
+        statSync(candidate);
+        filePath = candidate;
+        break;
+      } catch {
+        // not in this project
+      }
     }
   } catch {
-    // fallback to default
+    // projects dir unreadable
   }
+
+  if (!filePath) {
+    jsonError(res, 404, "Session not found");
+    return;
+  }
+
+  const messages: ChatMessage[] = [];
+
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    const lines = content.split("\n").filter((l) => l.trim());
+
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        const msg = entry.message;
+        if (!msg || typeof msg !== "object") continue;
+
+        const role = msg.role;
+        if (role !== "user" && role !== "assistant") continue;
+
+        const rawContent = msg.content;
+        let text = "";
+        const tools: string[] = [];
+
+        if (typeof rawContent === "string") {
+          text = rawContent;
+        } else if (Array.isArray(rawContent)) {
+          for (const block of rawContent) {
+            if (block.type === "text" && block.text) {
+              text += (text ? "\n" : "") + block.text;
+            } else if (block.type === "tool_use" && block.name) {
+              tools.push(block.name);
+            }
+          }
+        }
+
+        if (!text && tools.length === 0) continue;
+
+        if (
+          role === "assistant" &&
+          messages.length > 0 &&
+          messages[messages.length - 1].role === "assistant"
+        ) {
+          const prev = messages[messages.length - 1];
+          if (text) prev.content += (prev.content ? "\n" : "") + text;
+          if (tools.length > 0) {
+            prev.tools = [...(prev.tools || []), ...tools];
+          }
+          continue;
+        }
+
+        if (role === "user" && tools.length > 0 && !text) continue;
+
+        messages.push({
+          role,
+          content: text,
+          ...(tools.length > 0 ? { tools } : {}),
+        });
+      } catch {
+        // skip unparseable lines
+      }
+    }
+  } catch {
+    jsonError(res, 500, "Failed to read session");
+    return;
+  }
+
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ sessionId, messages, count: messages.length }));
+}
+
+async function handleQr(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const host = req.headers.host;
+  let url = host ? `https://${host}` : await getTailscaleUrl();
 
   try {
     const svg = await QRCode.toString(url, { type: "svg", margin: 2 });
@@ -530,6 +679,28 @@ async function handleSettings(
   res.end(JSON.stringify({ mcpServers }));
 }
 
+async function handleHealth(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const tsUrl = await getTailscaleUrl();
+  const sessions = discoverTerminalSessions();
+
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(
+    JSON.stringify({
+      status: "ok",
+      version: "2.0.0",
+      uptime: process.uptime(),
+      publishedUrl: tsUrl.includes("tailclaude.local") ? null : tsUrl,
+      sessions: { active: activeProcesses.size, total: sessions.length },
+    }),
+  );
+}
+
 let server: Server | null = null;
 
 export function startProxy(): Promise<void> {
@@ -568,6 +739,15 @@ export function startProxy(): Promise<void> {
 
       if (!checkAuth(req, res)) return;
 
+      if (method === "GET" && url === "/health") {
+        handleHealth(req, res).catch(() => {
+          if (!res.headersSent) {
+            jsonError(res, 500, "Health check failed");
+          }
+        });
+        return;
+      }
+
       if (method === "POST" && url === "/chat") {
         handleChat(req, res);
         return;
@@ -584,6 +764,13 @@ export function startProxy(): Promise<void> {
             jsonError(res, 500, "Failed to list sessions");
           }
         });
+        return;
+      }
+
+      const sessionMatch =
+        method === "GET" && url.match(/^\/sessions\/([a-f0-9-]{36})$/);
+      if (sessionMatch) {
+        handleSessionHistory(req, res, sessionMatch[1]);
         return;
       }
 

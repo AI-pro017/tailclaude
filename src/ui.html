@@ -37,9 +37,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .session-item{padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);transition:background .1s;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .session-item:hover{background:var(--bg)}
 .session-item.active{background:var(--bg);color:var(--text)}
-.session-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-item .session-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.session-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-item .session-meta{font-size:10px;color:var(--muted);opacity:.7}
 .session-item .badges{display:flex;gap:4px;flex-shrink:0;align-items:center}
-.session-item .count{font-size:11px;background:var(--border);padding:1px 6px;border-radius:8px}
 .source-badge{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:600;text-transform:uppercase}
 .source-badge.web{background:#1e3a5f;color:#60a5fa}
 .source-badge.terminal{background:#1a3a2a;color:#4ade80}
@@ -139,8 +140,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="control-row">
         <label>Model</label>
         <select class="control-select" id="modelSelect">
-          <option value="sonnet" selected>Sonnet</option>
-          <option value="opus">Opus</option>
+          <option value="opus" selected>Opus</option>
+          <option value="sonnet">Sonnet</option>
           <option value="haiku">Haiku</option>
         </select>
       </div>
@@ -171,7 +172,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="topbar">
       <button class="hamburger" id="menuBtn">&#9776;</button>
       <span class="session-name" id="sessionInfo">No active session</span>
-      <span class="badge model" id="modelBadge">sonnet</span>
+      <span class="badge model" id="modelBadge">opus</span>
       <span class="badge mode-badge" id="modeBadge">default</span>
       <span class="badge effort-badge" id="effortBadge">medium</span>
     </div>
@@ -393,18 +394,20 @@ async function loadSettings() {
 }
 
 async function loadQr() {
-  try {
-    $('#qrImage').innerHTML = '<img src="/qr" width="200" height="200" alt="QR code">'
-  } catch {}
+  $('#qrImage').innerHTML = '<img src="/qr" width="200" height="200" alt="QR code">'
   try {
     const healthRes = await fetch('/health', { headers: authHeaders() })
     if (healthRes.ok) {
       const health = await healthRes.json()
       if (health.publishedUrl) {
         $('#qrUrl').textContent = health.publishedUrl
+      } else {
+        $('#qrUrl').textContent = location.origin
       }
     }
-  } catch {}
+  } catch {
+    $('#qrUrl').textContent = location.origin
+  }
 }
 
 function escapeHtml(text) {
@@ -421,8 +424,10 @@ async function checkHealth() {
     $statusText.textContent = 'Connected'
     $statusText.style.color = 'var(--success)'
 
-    if (data.sessions?.active !== undefined) {
-      $sessionCount.textContent = `${data.sessions.active} session${data.sessions.active !== 1 ? 's' : ''}`
+    if (data.sessions?.total !== undefined) {
+      const t = data.sessions.total
+      const a = data.sessions.active || 0
+      $sessionCount.textContent = a > 0 ? `${a} active / ${t} total` : `${t} session${t !== 1 ? 's' : ''}`
     }
 
     if (data.publishedUrl) {
@@ -465,19 +470,39 @@ async function loadSessions() {
 
 function displayName(session) {
   if (sessionNames[session.id]) return sessionNames[session.id]
+  if (session.slug) return session.slug
   if (session.project) return session.project
-  return session.id.slice(0, 8) + '...'
+  return session.id.slice(0, 8)
+}
+
+function formatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now - d
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays < 7) return `${diffDays}d ago`
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 function renderSessions() {
   $sessionList.innerHTML = sessions.map(s => {
     const source = s.source || 'web'
+    const date = formatDate(s.lastUsed)
+    const msgCount = s.messageCount ? `${s.messageCount} msg${s.messageCount !== 1 ? 's' : ''}` : ''
     return `
     <div class="session-item ${s.id === currentSession?.id ? 'active' : ''}" data-id="${s.id}">
-      <span class="name">${escapeHtml(displayName(s))}</span>
+      <div class="session-info">
+        <span class="name">${escapeHtml(displayName(s))}</span>
+        <span class="session-meta">${escapeHtml(date)}${msgCount ? ' · ' + msgCount : ''}</span>
+      </div>
       <div class="badges">
         <span class="source-badge ${source}">${source}</span>
-        ${s.messageCount !== undefined ? `<span class="count">${s.messageCount}</span>` : ''}
       </div>
     </div>`
   }).join('')
@@ -523,7 +548,7 @@ $('#renameInput').addEventListener('keydown', e => {
   if (e.key === 'Escape') hideModals()
 })
 
-function setActiveSession() {
+async function setActiveSession() {
   if (!currentSession) return
   $sessionInfo.textContent = displayName(currentSession)
   $modelBadge.textContent = currentSession.model || getModel()
@@ -531,8 +556,47 @@ function setActiveSession() {
   $send.disabled = false
   $messages.innerHTML = ''
   renderSessions()
-  $input.focus()
   localStorage.setItem('tc_last_session', currentSession.id)
+
+  if (currentSession.id) {
+    $messages.innerHTML = '<div class="msg assistant"><div class="loading"><span></span><span></span><span></span></div></div>'
+    try {
+      const res = await fetch(`/sessions/${currentSession.id}`, { headers: authHeaders() })
+      if (res.ok) {
+        const data = await res.json()
+        $messages.innerHTML = ''
+        if (data.messages && data.messages.length > 0) {
+          for (const msg of data.messages) {
+            const div = document.createElement('div')
+            div.className = `msg ${msg.role === 'user' ? 'user' : 'assistant'}`
+            const text = msg.content.length > 3000
+              ? msg.content.slice(0, 3000) + '\n\n...(truncated)'
+              : msg.content
+            div.innerHTML = `<div class="content">${renderMarkdown(text)}</div>`
+            if (msg.tools && msg.tools.length > 0) {
+              const toolList = msg.tools.length > 8
+                ? [...msg.tools.slice(0, 8), `+${msg.tools.length - 8} more`]
+                : msg.tools
+              div.innerHTML += '<div class="tools-used">' +
+                toolList.map(t => `<span class="tool-badge">${escapeHtml(t)}</span>`).join('') +
+                '</div>'
+            }
+            $messages.appendChild(div)
+          }
+          $messages.scrollTop = $messages.scrollHeight
+        } else {
+          $messages.innerHTML = '<div class="empty"><p style="font-size:13px;color:var(--muted)">No messages in this session</p></div>'
+        }
+      } else if (res.status === 404) {
+        $messages.innerHTML = '<div class="empty"><p style="font-size:13px;color:var(--muted)">Session file not found</p></div>'
+      } else {
+        $messages.innerHTML = '<div class="empty"><p style="font-size:13px;color:var(--muted)">Failed to load session history</p></div>'
+      }
+    } catch {
+      $messages.innerHTML = '<div class="empty"><p style="font-size:13px;color:var(--muted)">Failed to load session history</p></div>'
+    }
+  }
+  $input.focus()
 }
 
 async function createSession() {
