@@ -30,7 +30,7 @@ Both approaches use Tailscale for secure access. TailClaude just removes everyth
 
 ## Architecture
 
-```
+```text
 +-----------------------------------------------------------------+
 |  Browser (any device on your tailnet)                           |
 |  https://your-machine.tail-abc.ts.net                           |
@@ -38,20 +38,29 @@ Both approaches use Tailscale for secure access. TailClaude just removes everyth
                                   | HTTPS (auto-cert via Tailscale)
                                   v
 +-----------------------------------------------------------------+
-|  tailscale serve :443 -> http://127.0.0.1:3111                  |
+|  tailscale serve :443 -> http://127.0.0.1:3110                  |
++---------------------------------+-------------------------------+
+                                  |
+                                  v
++-----------------------------------------------------------------+
+|  Node.js Proxy (port 3110)                                      |
+|                                                                 |
+|  GET  /              -> Chat UI (streaming, controls, QR)       |
+|  POST /chat          -> SSE streaming (claude --stream-json)    |
+|  POST /chat/stop     -> Kill active claude process              |
+|  GET  /sessions      -> Discover terminal + web sessions        |
+|  GET  /qr            -> QR code SVG                             |
+|  GET  /settings      -> MCP servers list                        |
+|  *                   -> Proxy to iii engine (port 3111)          |
 +---------------------------------+-------------------------------+
                                   |
                                   v
 +-----------------------------------------------------------------+
 |  iii REST API (port 3111)                                       |
 |                                                                 |
-|  GET  /              -> Chat UI (responsive, session naming)    |
 |  GET  /health        -> Health + Tailscale status + sessions    |
-|  GET  /sessions      -> List all sessions                       |
-|  POST /sessions      -> Create new Claude session               |
-|  POST /sessions/chat -> Send message to Claude                  |
 |                                                                 |
-|  Event: engine::started -> auto-publish to Tailscale            |
+|  Event: engine::started -> auto-publish to Tailscale + QR       |
 |  Cron:  */30 * * * *    -> cleanup sessions older than 24h      |
 |  Signal: SIGINT/SIGTERM  -> unpublish Tailscale + clean exit    |
 +---------------------------------+-------------------------------+
@@ -68,7 +77,7 @@ Both approaches use Tailscale for secure access. TailClaude just removes everyth
                                   |
                                   v
 +-----------------------------------------------------------------+
-|  claude -p --resume <session-id> --output-format json           |
+|  claude -p --output-format stream-json --include-partial-messages|
 |  (Claude Code CLI -- works with Pro/Max plans)                  |
 +-----------------------------------------------------------------+
 ```
@@ -76,12 +85,13 @@ Both approaches use Tailscale for secure access. TailClaude just removes everyth
 ## How It Works
 
 1. **iii engine** runs the REST API, state store, event bus, and cron scheduler
-2. **TailClaude worker** connects via WebSocket and registers API handlers
-3. `POST /sessions` spawns a new Claude session via `claude -p --session-id <uuid>`
-4. `POST /sessions/chat` sends messages via `claude -p --resume <id>` for multi-turn context
-5. On engine start, TailClaude auto-publishes to your tailnet via `tailscale serve`
-6. On shutdown (Ctrl+C), TailClaude unpublishes from Tailscale and exits cleanly
-7. A cron job cleans up stale sessions every 30 minutes
+2. **TailClaude worker** connects via WebSocket and registers the health handler
+3. **Node.js proxy** (port 3110) serves the UI and handles all chat/session endpoints
+4. `POST /chat` spawns `claude -p --output-format stream-json` and streams tokens via SSE
+5. `GET /sessions` discovers both terminal sessions (`~/.claude/sessions/`) and web sessions
+6. On engine start, TailClaude auto-publishes to your tailnet via `tailscale serve` and prints a QR code
+7. On shutdown (Ctrl+C), TailClaude unpublishes from Tailscale and exits cleanly
+8. A cron job cleans up stale sessions every 30 minutes
 
 ## Prerequisites
 
@@ -123,57 +133,58 @@ npm run dev
 ### Verify
 
 ```bash
-# Health check (now includes Tailscale status and session count)
+# Health check
 curl http://localhost:3111/health
 
-# Create a session (takes 30-60s for Claude CLI init)
-curl -X POST http://localhost:3111/sessions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"sonnet"}'
+# Open the chat UI (via proxy)
+open http://localhost:3110
 
-# Send a message
-curl -X POST http://localhost:3111/sessions/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"sessionId":"<id-from-above>","message":"What is 2+2?"}'
+# List all sessions (terminal + web)
+curl http://localhost:3110/sessions
 
-# Open the chat UI
-open http://localhost:3111
+# QR code SVG
+curl http://localhost:3110/qr
 ```
 
 ## Chat UI Features
 
+- **SSE streaming** -- tokens appear in real-time as Claude generates them
+- **Session discovery** -- browse and resume any terminal or web session
+- **QR code** -- scan from phone to access TailClaude on your tailnet
+- **Permission modes** -- default, plan, acceptEdits, bypassPermissions, dontAsk
+- **Effort levels** -- low, medium, high
+- **Model selector** -- switch between Sonnet, Opus, and Haiku
+- **Budget control** -- set max spend per message
+- **System prompt** -- append instructions to every message
+- **MCP servers** -- view configured MCP servers in settings
+- **Stop button** -- abort mid-response
 - **Mobile-first** -- hamburger menu, touch-optimized, responsive layout
 - **Session naming** -- double-click (or long-press on mobile) to name sessions
-- **Model selector** -- switch between Sonnet, Opus, and Haiku from the sidebar
 - **Auto-restore** -- reopening the browser resumes your last active session
-- **Tailscale URL display** -- shows your published URL in the sidebar
 - **Dark theme** with purple accents
 - **Inline markdown** rendering (code blocks, bold, italic, lists)
-- **Loading animation** while waiting for Claude
 - **Cost tracking** per message and cumulative
 - **Tool use badges** on assistant responses
 - **Connection status** with auto-reconnect polling
+- **Auth support** -- set `TAILCLAUDE_TOKEN` env var to require bearer token
 
 ## Project Structure
 
-```
+```text
 tailclaude/
 ├── iii-config.yaml              # iii engine configuration (180s timeout)
-├── package.json                 # dependencies (iii-sdk)
+├── package.json                 # dependencies (iii-sdk, qrcode)
 ├── tsconfig.json
 └── src/
     ├── iii.ts                   # SDK init (iii-sdk init() with OTel config)
     ├── hooks.ts                 # useApi, useEvent, useCron helpers
     ├── state.ts                 # State wrapper (scope/key API via iii.call)
-    ├── index.ts                 # Register all routes + handlers
+    ├── proxy.ts                 # HTTP proxy with SSE chat, sessions, QR, settings
+    ├── index.ts                 # Register health route + event + cron + proxy
     ├── ui.html                  # Chat UI (single file, inline CSS/JS)
     └── handlers/
         ├── health.ts            # GET /health (with Tailscale + session status)
-        ├── create-session.ts    # POST /sessions
-        ├── send-message.ts      # POST /sessions/chat
-        ├── list-sessions.ts     # GET /sessions
-        ├── serve-ui.ts          # GET / (serves ui.html, dev-mode cache bypass)
-        ├── setup.ts             # Tailscale auto-publish with verification
+        ├── setup.ts             # Tailscale auto-publish with QR code
         ├── shutdown.ts          # Graceful shutdown (SIGINT/SIGTERM + unpublish)
         └── cleanup.ts           # Cron: remove stale sessions
 ```
@@ -186,6 +197,7 @@ tailclaude/
 |----------|---------|-------------|
 | `III_BRIDGE_URL` | `ws://localhost:49134` | iii engine WebSocket URL |
 | `NODE_ENV` | - | Set to `production` to enable UI caching |
+| `TAILCLAUDE_TOKEN` | - | Bearer token for proxy auth (optional) |
 
 ### iii Modules
 
@@ -207,13 +219,14 @@ When Tailscale is available, TailClaude automatically:
 
 1. Detects your Tailscale IP on engine start
 2. Checks for existing serve listeners (reuses if already active)
-3. Runs `tailscale serve --bg --yes --https=443 http://127.0.0.1:3111`
+3. Runs `tailscale serve --bg --yes --https=443 http://127.0.0.1:3110`
 4. Verifies the proxy registered via `tailscale serve status --json`
 5. Handles port conflicts by clearing and retrying
-6. Logs the published URL (also shown in health check and UI sidebar)
-7. On shutdown (SIGINT/SIGTERM), runs `tailscale serve --https=443 off`
+6. Prints a QR code to the terminal for mobile access
+7. Logs the published URL (also shown in health check and UI sidebar)
+8. On shutdown (SIGINT/SIGTERM), runs `tailscale serve --https=443 off`
 
-If Tailscale is not installed, it runs in local-only mode at `http://127.0.0.1:3111`.
+If Tailscale is not installed, it runs in local-only mode at `http://127.0.0.1:3110`.
 
 ## Inspiration
 

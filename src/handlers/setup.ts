@@ -60,9 +60,8 @@ async function publishToTailscale(ctx: Context): Promise<void> {
   const statusJson = await runCommand("tailscale", ["status", "--json"]);
   const parsed = JSON.parse(statusJson);
   const hostname = parsed.Self?.HostName ?? "unknown";
-  const dnsParts =
-    parsed.Self?.DNSName?.split(".").slice(-3, -1).join(".") ?? "net";
-  const url = `https://${hostname}.tail${dnsParts}`;
+  const dnsName = parsed.Self?.DNSName?.replace(/\.$/, "");
+  const url = dnsName ? `https://${dnsName}` : `https://${hostname}.ts.net`;
 
   await state.set({
     scope: "config",
