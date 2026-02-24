@@ -1,25 +1,31 @@
 # TailClaude
 
-Claude Code on your Tailscale tailnet, powered by the [iii engine](https://github.com/iii-hq/iii).
+**Claude Code from any browser. No SSH. No terminal. Just a URL.**
 
-TailClaude publishes a full Claude Code web interface to every device on your tailnet — or the public internet via Tailscale Funnel. Real-time streaming, session history, QR code access, and full Claude Code controls from any browser.
+TailClaude publishes a full Claude Code web interface to every device on your Tailscale tailnet — or the public internet via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). Powered by the [iii engine](https://github.com/iii-hq/iii).
+
+Scan a QR code from your phone, open the link, and start coding with Claude — **streaming responses, full session history, model switching, cost tracking, and every Claude Code control in a touch-optimized UI**.
 
 ## Why TailClaude?
 
 Every "doom coding" setup — SSH, mosh, tmux, Termius, Moshi — still puts you in a terminal. You're still typing on a tiny keyboard, memorizing shortcuts, and managing connections.
 
-TailClaude removes the terminal entirely. **No SSH. No mosh. No terminal client. Just open a browser.**
+**TailClaude removes the terminal entirely.**
 
-| | Terminal approach (SSH/mosh + tmux) | TailClaude |
+| | Terminal (SSH/mosh + tmux) | **TailClaude** |
 |---|---|---|
-| **What you need** | Terminal app + SSH/mosh + tmux | Any browser |
-| **Setup on phone** | Install app, configure keys/auth | Scan QR code |
-| **Network switching** | mosh helps, SSH drops | Browser reconnects automatically |
-| **Interface** | Terminal emulator | Web chat UI with Markdown rendering |
-| **Session sharing** | `tmux attach` (terminal only) | Browse ALL sessions (terminal + web) |
-| **Model switching** | Edit CLI flags manually | Dropdown menu (Opus, Sonnet, Haiku) |
-| **Mobile experience** | Tiny terminal, keyboard shortcuts | Touch-optimized responsive UI |
-| **Cost visibility** | None | Live token count + per-message cost |
+| **Client** | Terminal app + SSH/mosh + tmux | **Any browser** |
+| **Phone setup** | Install app, configure keys/auth | **Scan QR code** |
+| **Network switch** | mosh helps, SSH drops | **Browser reconnects automatically** |
+| **Interface** | Terminal emulator | **Web chat UI with Markdown rendering** |
+| **Streaming** | Raw terminal output | **Real-time SSE, token-by-token** |
+| **Session history** | `tmux attach` (terminal only) | **Browse ALL sessions (terminal + web)** |
+| **Model switching** | Edit CLI flags, restart | **Dropdown: Opus, Sonnet, Haiku** |
+| **Permission modes** | CLI flags | **One-click: default, plan, acceptEdits, bypassPermissions** |
+| **Cost tracking** | None | **Live tokens + per-message cost ($0.01 · 4.5K in / 892 out)** |
+| **Stop mid-response** | Ctrl+C in terminal | **Stop button with instant feedback** |
+| **Mobile UX** | Tiny terminal, keyboard shortcuts | **Touch-optimized, responsive, dark theme** |
+| **Setup time** | ~15 minutes | **`npm install && iii -c iii-config.yaml`** |
 
 Tailscale handles the secure connection. TailClaude handles everything else.
 
