@@ -2,29 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>TailClaude</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a0a;--surface:#141414;--border:#252525;--text:#e4e4e7;--muted:#71717a;--accent:#a78bfa;--accent-dim:#7c3aed;--user-bg:#1e1b4b;--assistant-bg:#1a1a1a;--code-bg:#1e1e2e;--danger:#ef4444;--success:#22c55e}
 html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text)}
-#app{display:flex;height:100vh}
-.sidebar{width:260px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+#app{display:flex;height:100vh;height:100dvh}
+.sidebar{width:280px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:transform .2s ease}
 .sidebar-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .sidebar-header h1{font-size:16px;font-weight:600;letter-spacing:-.02em}
 .sidebar-header span{font-size:11px;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:10px}
-.new-chat{margin:12px;padding:10px;background:var(--accent-dim);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:opacity .15s}
+.model-select-wrap{margin:12px 12px 0;display:flex;gap:8px}
+.model-select{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none}
+.model-select:focus{border-color:var(--accent)}
+.new-chat{margin:8px 12px 12px;padding:10px;background:var(--accent-dim);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:opacity .15s}
 .new-chat:hover{opacity:.85}
 .new-chat:disabled{opacity:.5;cursor:not-allowed}
 .sessions{flex:1;overflow-y:auto;padding:4px 8px}
-.session-item{padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);transition:background .1s;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center}
+.session-item{padding:10px 12px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);transition:background .1s;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;gap:8px}
 .session-item:hover{background:var(--bg)}
 .session-item.active{background:var(--bg);color:var(--text)}
-.session-item .count{font-size:11px;background:var(--border);padding:1px 6px;border-radius:8px}
+.session-item .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-item .count{font-size:11px;background:var(--border);padding:1px 6px;border-radius:8px;flex-shrink:0}
+.tailscale-url{margin:0 12px 12px;padding:8px 10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);word-break:break-all;display:none}
+.tailscale-url.visible{display:block}
+.tailscale-url a{color:var(--accent);text-decoration:none}
 .main{flex:1;display:flex;flex-direction:column;min-width:0}
-.topbar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}
-.topbar .model{background:var(--accent-dim);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500}
-.messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+.topbar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted)}
+.hamburger{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1}
+.hamburger:hover{background:var(--border)}
+.topbar .session-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar .model{background:var(--accent-dim);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;flex-shrink:0}
+.messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;-webkit-overflow-scrolling:touch}
 .msg{max-width:720px;width:100%;margin:0 auto;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.65}
 .msg.user{background:var(--user-bg);align-self:flex-end;border-bottom-right-radius:4px}
 .msg.assistant{background:var(--assistant-bg);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
@@ -37,45 +47,71 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .msg em{font-style:italic}
 .tools-used{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .tool-badge{font-size:11px;background:var(--border);color:var(--muted);padding:2px 8px;border-radius:6px}
-.input-area{padding:16px 20px;border-top:1px solid var(--border);background:var(--surface)}
+.input-area{padding:12px 20px;border-top:1px solid var(--border);background:var(--surface)}
 .input-wrap{max-width:720px;margin:0 auto;display:flex;gap:8px;align-items:flex-end}
-.input-wrap textarea{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:14px;font-family:inherit;resize:none;min-height:42px;max-height:200px;line-height:1.5;outline:none;transition:border-color .15s}
+.input-wrap textarea{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:16px;font-family:inherit;resize:none;min-height:42px;max-height:200px;line-height:1.5;outline:none;transition:border-color .15s}
 .input-wrap textarea:focus{border-color:var(--accent)}
 .input-wrap button{background:var(--accent-dim);color:#fff;border:none;border-radius:10px;padding:10px 18px;cursor:pointer;font-size:14px;font-weight:500;transition:opacity .15s;white-space:nowrap}
 .input-wrap button:hover{opacity:.85}
 .input-wrap button:disabled{opacity:.4;cursor:not-allowed}
-.status-bar{padding:6px 20px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);display:flex;gap:16px;justify-content:center}
-.empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted)}
+.status-bar{padding:6px 20px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted);padding:20px}
 .empty h2{font-size:24px;font-weight:600;color:var(--text)}
-.empty p{font-size:14px}
+.empty p{font-size:14px;text-align:center}
 .loading{display:inline-flex;gap:4px;padding:8px 0}
 .loading span{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:bounce .6s infinite alternate}
 .loading span:nth-child(2){animation-delay:.15s}
 .loading span:nth-child(3){animation-delay:.3s}
 @keyframes bounce{to{opacity:.3;transform:translateY(-6px)}}
-@media(max-width:768px){.sidebar{display:none}.msg{max-width:100%}}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9}
+.rename-dialog{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;z-index:11;width:min(320px,90vw)}
+.rename-dialog h3{font-size:14px;margin-bottom:12px}
+.rename-dialog input{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:14px;outline:none}
+.rename-dialog input:focus{border-color:var(--accent)}
+.rename-dialog .actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.rename-dialog button{padding:6px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px}
+.rename-dialog .cancel{background:var(--border);color:var(--text)}
+.rename-dialog .save{background:var(--accent-dim);color:#fff}
+
+@media(max-width:768px){
+  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:10;transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .hamburger{display:block}
+  .msg{max-width:100%}
+  .overlay.visible{display:block}
+}
 </style>
 </head>
 <body>
 <div id="app">
-  <div class="sidebar">
+  <div class="overlay" id="overlay"></div>
+  <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <h1>TailClaude</h1>
       <span>via iii</span>
     </div>
+    <div class="model-select-wrap">
+      <select class="model-select" id="modelSelect">
+        <option value="sonnet" selected>Sonnet</option>
+        <option value="opus">Opus</option>
+        <option value="haiku">Haiku</option>
+      </select>
+    </div>
     <button class="new-chat" id="newChat">+ New Chat</button>
     <div class="sessions" id="sessionList"></div>
+    <div class="tailscale-url" id="tailscaleUrl"></div>
   </div>
   <div class="main">
     <div class="topbar">
-      <span id="sessionInfo">No active session</span>
+      <button class="hamburger" id="menuBtn">&#9776;</button>
+      <span class="session-name" id="sessionInfo">No active session</span>
       <span class="model" id="modelBadge">sonnet</span>
     </div>
     <div class="messages" id="messages">
       <div class="empty">
         <h2>TailClaude</h2>
-        <p>Claude Code on your tailnet, powered by iii engine</p>
-        <p style="font-size:12px">Click "New Chat" to start a session</p>
+        <p>Claude Code on your tailnet — no SSH, no tmux, just open your browser</p>
+        <p style="font-size:12px">Click "+ New Chat" to start a session</p>
       </div>
     </div>
     <div class="input-area">
@@ -85,11 +121,23 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       </div>
     </div>
     <div class="status-bar">
-      <span id="statusText">Disconnected</span>
+      <span id="statusDot">&#9679;</span>
+      <span id="statusText">Connecting...</span>
+      <span id="sessionCount"></span>
       <span id="costDisplay"></span>
     </div>
   </div>
 </div>
+
+<div class="rename-dialog" id="renameDialog">
+  <h3>Name this session</h3>
+  <input id="renameInput" placeholder="e.g. fix-auth-bug" maxlength="40">
+  <div class="actions">
+    <button class="cancel" id="renameCancel">Cancel</button>
+    <button class="save" id="renameSave">Save</button>
+  </div>
+</div>
+
 <script>
 const $ = s => document.querySelector(s)
 const $messages = $('#messages')
@@ -99,13 +147,37 @@ const $newChat = $('#newChat')
 const $sessionList = $('#sessionList')
 const $sessionInfo = $('#sessionInfo')
 const $modelBadge = $('#modelBadge')
+const $modelSelect = $('#modelSelect')
 const $statusText = $('#statusText')
+const $statusDot = $('#statusDot')
 const $costDisplay = $('#costDisplay')
+const $sessionCount = $('#sessionCount')
+const $sidebar = $('#sidebar')
+const $overlay = $('#overlay')
+const $menuBtn = $('#menuBtn')
+const $tailscaleUrl = $('#tailscaleUrl')
+const $renameDialog = $('#renameDialog')
+const $renameInput = $('#renameInput')
 
 let currentSession = null
 let sessions = []
 let totalCost = 0
 let sending = false
+let sessionNames = JSON.parse(localStorage.getItem('tc_names') || '{}')
+let connected = false
+
+function saveNames() {
+  localStorage.setItem('tc_names', JSON.stringify(sessionNames))
+}
+
+function toggleSidebar(show) {
+  const open = show ?? !$sidebar.classList.contains('open')
+  $sidebar.classList.toggle('open', open)
+  $overlay.classList.toggle('visible', open)
+}
+
+$menuBtn.onclick = () => toggleSidebar()
+$overlay.onclick = () => toggleSidebar(false)
 
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -117,10 +189,23 @@ async function api(path, opts = {}) {
 
 async function checkHealth() {
   try {
-    await api('/health')
+    const data = await api('/health')
+    connected = true
+    $statusDot.style.color = 'var(--success)'
     $statusText.textContent = 'Connected'
     $statusText.style.color = 'var(--success)'
+
+    if (data.sessions?.active !== undefined) {
+      $sessionCount.textContent = `${data.sessions.active} session${data.sessions.active !== 1 ? 's' : ''}`
+    }
+
+    if (data.publishedUrl) {
+      $tailscaleUrl.innerHTML = `<a href="${data.publishedUrl}" target="_blank">${data.publishedUrl}</a>`
+      $tailscaleUrl.classList.add('visible')
+    }
   } catch {
+    connected = false
+    $statusDot.style.color = 'var(--danger)'
     $statusText.textContent = 'Disconnected'
     $statusText.style.color = 'var(--danger)'
   }
@@ -131,13 +216,26 @@ async function loadSessions() {
     const data = await api('/sessions')
     sessions = data.sessions || []
     renderSessions()
+
+    const lastId = localStorage.getItem('tc_last_session')
+    if (lastId && !currentSession) {
+      const found = sessions.find(s => s.id === lastId)
+      if (found) {
+        currentSession = found
+        setActiveSession()
+      }
+    }
   } catch {}
+}
+
+function displayName(session) {
+  return sessionNames[session.id] || session.id.slice(0, 8) + '...'
 }
 
 function renderSessions() {
   $sessionList.innerHTML = sessions.map(s => `
     <div class="session-item ${s.id === currentSession?.id ? 'active' : ''}" data-id="${s.id}">
-      <span>${s.id.slice(0, 8)}...</span>
+      <span class="name">${displayName(s)}</span>
       <span class="count">${s.messageCount}</span>
     </div>
   `).join('')
@@ -146,31 +244,70 @@ function renderSessions() {
     el.onclick = () => {
       currentSession = sessions.find(s => s.id === el.dataset.id)
       setActiveSession()
+      toggleSidebar(false)
     }
+    el.addEventListener('dblclick', () => {
+      openRename(el.dataset.id)
+    })
+    let timer
+    el.addEventListener('touchstart', () => { timer = setTimeout(() => openRename(el.dataset.id), 500) })
+    el.addEventListener('touchend', () => clearTimeout(timer))
+    el.addEventListener('touchmove', () => clearTimeout(timer))
   })
 }
 
+function openRename(sessionId) {
+  $renameInput.value = sessionNames[sessionId] || ''
+  $renameDialog.style.display = 'block'
+  $renameInput.focus()
+  $renameInput.dataset.sessionId = sessionId
+}
+
+$('#renameCancel').onclick = () => { $renameDialog.style.display = 'none' }
+$('#renameSave').onclick = () => {
+  const id = $renameInput.dataset.sessionId
+  const name = $renameInput.value.trim()
+  if (name) {
+    sessionNames[id] = name
+  } else {
+    delete sessionNames[id]
+  }
+  saveNames()
+  renderSessions()
+  if (currentSession?.id === id) {
+    $sessionInfo.textContent = name || currentSession.id.slice(0, 8) + '...'
+  }
+  $renameDialog.style.display = 'none'
+}
+$renameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('#renameSave').click()
+  if (e.key === 'Escape') $('#renameCancel').click()
+})
+
 function setActiveSession() {
   if (!currentSession) return
-  $sessionInfo.textContent = `Session: ${currentSession.id.slice(0, 8)}...`
+  $sessionInfo.textContent = displayName(currentSession)
   $modelBadge.textContent = currentSession.model
   $input.disabled = false
   $send.disabled = false
   $messages.innerHTML = ''
   renderSessions()
   $input.focus()
+  localStorage.setItem('tc_last_session', currentSession.id)
 }
 
 async function createSession() {
+  const model = $modelSelect.value
   $newChat.disabled = true
   $newChat.textContent = 'Creating...'
 
   try {
-    const data = await api('/sessions', { method: 'POST', body: JSON.stringify({ model: 'sonnet' }) })
-    currentSession = { id: data.sessionId, model: data.model || 'sonnet', messageCount: 0 }
+    const data = await api('/sessions', { method: 'POST', body: JSON.stringify({ model }) })
+    currentSession = { id: data.sessionId, model: data.model || model, messageCount: 0 }
     sessions.unshift(currentSession)
     setActiveSession()
     addMessage('assistant', data.initResponse || 'Ready.')
+    toggleSidebar(false)
   } catch (err) {
     addMessage('assistant', `Failed to create session: ${err.message}`)
   } finally {
@@ -206,7 +343,7 @@ async function sendMessage() {
 
     if (data.cost) {
       totalCost += parseFloat(data.cost)
-      $costDisplay.textContent = `Total cost: $${totalCost.toFixed(4)}`
+      $costDisplay.textContent = `$${totalCost.toFixed(4)}`
     }
 
     currentSession.messageCount++
@@ -230,7 +367,7 @@ function addMessage(role, text, meta = {}) {
 
   if (meta.duration || meta.toolsUsed?.length || meta.cost) {
     let metaHtml = '<div class="meta">'
-    if (meta.duration) metaHtml += `<span>${meta.duration}ms</span>`
+    if (meta.duration) metaHtml += `<span>${(meta.duration / 1000).toFixed(1)}s</span>`
     if (meta.cost) metaHtml += `<span>$${meta.cost}</span>`
     metaHtml += '</div>'
 
@@ -289,7 +426,8 @@ $newChat.addEventListener('click', createSession)
 
 checkHealth()
 loadSessions()
-setInterval(checkHealth, 30000)
+setInterval(checkHealth, 15000)
+setInterval(loadSessions, 60000)
 </script>
 </body>
 </html>
