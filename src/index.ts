@@ -25,4 +25,6 @@ useCron(
 
 registerShutdownHandlers();
 
-console.log("TailClaude v2 worker registered — waiting for iii engine connection");
+console.log(
+  "TailClaude v2 worker registered — waiting for iii engine connection",
+);

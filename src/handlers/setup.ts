@@ -81,14 +81,19 @@ async function publishToTailscale(ctx: Context): Promise<void> {
   }
 }
 
+function matchesProxyTarget(json: string): boolean {
+  return (
+    json.includes("3110") || json.includes("3111") || json.includes(TARGET)
+  );
+}
+
 async function checkExistingServe(): Promise<boolean> {
   try {
     const raw = await runCommand("tailscale", ["serve", "status", "--json"]);
     const status = JSON.parse(raw);
     const tcp = status?.TCP ?? status?.Web;
     if (!tcp) return false;
-    const handlers = JSON.stringify(tcp);
-    return handlers.includes("3110") || handlers.includes(TARGET);
+    return matchesProxyTarget(JSON.stringify(tcp));
   } catch {
     return false;
   }
@@ -130,8 +135,7 @@ async function verifyServeStatus(ctx: Context): Promise<boolean> {
     try {
       const raw = await runCommand("tailscale", ["serve", "status", "--json"]);
       const status = JSON.parse(raw);
-      const handlers = JSON.stringify(status);
-      if (handlers.includes("3110") || handlers.includes(TARGET)) {
+      if (matchesProxyTarget(JSON.stringify(status))) {
         ctx.logger.info("Tailscale serve status verified");
         return true;
       }
