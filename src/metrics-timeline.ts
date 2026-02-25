@@ -6,6 +6,8 @@ import { pushActivity } from "./activity.js";
 
 const logger = new Logger(undefined, "tailclaude-metrics-timeline");
 
+export const workerStartedAt = new Date().toISOString();
+
 const SCOPE = "metrics_timeline";
 const COOLDOWN_SCOPE = "alert_cooldowns";
 const ALERTS_SCOPE = "alerts";

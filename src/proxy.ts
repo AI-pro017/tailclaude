@@ -25,7 +25,11 @@ import { getSessionIndex, getSessionFilePath } from "./sessions.js";
 import { metricsCollector, getMetrics } from "./metrics.js";
 import { handleActivitySSE } from "./activity.js";
 import { getUsageStats } from "./usage.js";
-import { getTimeline, getActiveAlerts } from "./metrics-timeline.js";
+import {
+  getTimeline,
+  getActiveAlerts,
+  workerStartedAt,
+} from "./metrics-timeline.js";
 import { getTraces } from "./traces.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -861,7 +865,7 @@ async function handleMetricsTimeline(
     ...corsHeaders(),
     "content-type": "application/json",
   });
-  res.end(JSON.stringify({ timeline, alerts }));
+  res.end(JSON.stringify({ timeline, alerts, startedAt: workerStartedAt }));
 }
 
 async function handleTraces(

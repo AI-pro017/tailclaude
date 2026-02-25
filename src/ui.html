@@ -170,6 +170,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .metrics-refresh .refresh-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .metric-time-axis{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:2px;padding:0 2px;opacity:.6}
+.uptime-visual{padding:12px 0 4px;display:flex;align-items:center;gap:10px}
+.uptime-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;position:relative}
+.uptime-bar-fill{height:100%;background:linear-gradient(90deg,#4ade80 0%,#22c55e 100%);border-radius:3px;transition:width .5s ease}
+.uptime-segments{display:flex;gap:3px;flex:1}
+.uptime-seg{flex:1;height:20px;border-radius:3px;transition:background .3s}
+.uptime-seg.up{background:linear-gradient(180deg,rgba(74,222,128,.25) 0%,rgba(74,222,128,.08) 100%)}
+.uptime-seg.empty{background:var(--border);opacity:.3}
 
 .traces-table{width:100%;font-size:12px;border-collapse:collapse}
 .traces-table th{text-align:left;padding:8px 10px;color:var(--muted);border-bottom:1px solid var(--border);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
@@ -363,20 +370,18 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             <div class="metric-chart" id="chartLag"></div>
             <div class="metric-time-axis" id="timeLag"></div>
           </div>
-          <div class="metric-card" style="--metric-color:#4ade80" id="cardChats">
+          <div class="metric-card" style="--metric-color:#4ade80" id="cardUptime">
             <div class="metric-header">
               <div class="metric-info">
-                <span class="metric-label">Active Chats</span>
-                <span class="metric-value" id="metricChats">--</span>
+                <span class="metric-label">Worker Uptime</span>
+                <span class="metric-value" id="metricUptime">--</span>
               </div>
               <div class="metric-stats">
-                <div class="metric-stat"><span>Min</span><span class="metric-stat-val" id="chatsMin">--</span></div>
-                <div class="metric-stat"><span>Max</span><span class="metric-stat-val" id="chatsMax">--</span></div>
-                <div class="metric-stat"><span>Avg</span><span class="metric-stat-val" id="chatsAvg">--</span></div>
+                <div class="metric-stat"><span>Started</span><span class="metric-stat-val" id="uptimeStarted">--</span></div>
+                <div class="metric-stat"><span>Snapshots</span><span class="metric-stat-val" id="uptimeSnapshots">--</span></div>
               </div>
             </div>
-            <div class="metric-chart" id="chartChats"></div>
-            <div class="metric-time-axis" id="timeChats"></div>
+            <div class="uptime-visual" id="uptimeVisual"></div>
           </div>
         </div>
         <div class="metrics-refresh">
@@ -754,25 +759,23 @@ async function loadMetrics() {
     const memVals = timeline.map(t => t.memory_rss / (1024 * 1024))
     const cpuVals = timeline.map(t => t.cpu_percent)
     const lagVals = timeline.map(t => t.event_loop_lag_ms)
-    const chatVals = timeline.map(t => t.active_chats)
 
     if (timeline.length > 0) {
       const last = timeline[timeline.length - 1]
       setMetricValue('metricMemory', (last.memory_rss / (1024*1024)).toFixed(1), 'MB')
       setMetricValue('metricCpu', last.cpu_percent.toFixed(1), '%')
       setMetricValue('metricLag', last.event_loop_lag_ms.toFixed(1), 'ms')
-      setMetricValue('metricChats', String(last.active_chats), '')
     }
 
     renderAreaChart('chartMemory', memVals, '#c084fc', 'mem', timestamps, 'timeMemory')
     renderAreaChart('chartCpu', cpuVals, '#60a5fa', 'cpu', timestamps, 'timeCpu')
     renderAreaChart('chartLag', lagVals, '#fb923c', 'lag', timestamps, 'timeLag')
-    renderAreaChart('chartChats', chatVals, '#4ade80', 'chats', timestamps, 'timeChats')
 
     setMetricStats(memVals, 'mem', 1)
     setMetricStats(cpuVals, 'cpu', 1)
     setMetricStats(lagVals, 'lag', 1)
-    setMetricStats(chatVals, 'chats', 0)
+
+    renderUptime(data.startedAt, timeline.length)
 
     if (alerts.length > 0) {
       const msg = alerts.map(a => a.type?.replace('_', ' ')).join(', ')
@@ -858,6 +861,38 @@ function renderAreaChart(containerId, values, color, uid, timestamps, timeAxisId
       timeEl.innerHTML = `<span>${fmt(first)}</span><span>${fmt(mid)}</span><span>${fmt(last)}</span>`
     }
   }
+}
+
+function renderUptime(startedAt, snapshotCount) {
+  if (!startedAt) return
+  const start = new Date(startedAt)
+  const now = new Date()
+  const diffMs = now - start
+  const diffSec = Math.floor(diffMs / 1000)
+  const days = Math.floor(diffSec / 86400)
+  const hours = Math.floor((diffSec % 86400) / 3600)
+  const mins = Math.floor((diffSec % 3600) / 60)
+
+  let uptimeStr = ''
+  if (days > 0) uptimeStr = `${days}d ${hours}h`
+  else if (hours > 0) uptimeStr = `${hours}h ${mins}m`
+  else uptimeStr = `${mins}m`
+
+  setMetricValue('metricUptime', uptimeStr, '')
+
+  const $started = document.getElementById('uptimeStarted')
+  if ($started) $started.textContent = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const $snaps = document.getElementById('uptimeSnapshots')
+  if ($snaps) $snaps.textContent = String(snapshotCount)
+
+  const $visual = document.getElementById('uptimeVisual')
+  if (!$visual) return
+  const totalSlots = 30
+  const filledSlots = Math.min(snapshotCount, totalSlots)
+  const segs = Array.from({ length: totalSlots }, (_, i) =>
+    `<div class="uptime-seg ${i < filledSlots ? 'up' : 'empty'}"></div>`
+  ).join('')
+  $visual.innerHTML = `<div class="uptime-segments">${segs}</div>`
 }
 
 async function loadTraces() {
