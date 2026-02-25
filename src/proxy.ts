@@ -20,9 +20,17 @@ import {
 } from "./iii.js";
 import { state } from "./state.js";
 import { emit } from "./hooks.js";
-import { writeChatEvent, deleteChatGroup } from "./streams.js";
+import { writeChatEvent, listChatEvents } from "./streams.js";
 import { getSessionIndex, getSessionFilePath } from "./sessions.js";
-import { metricsCollector } from "./metrics.js";
+import { metricsCollector, getMetrics } from "./metrics.js";
+import { handleActivitySSE } from "./activity.js";
+import { getUsageStats } from "./usage.js";
+import {
+  getTimeline,
+  getActiveAlerts,
+  workerStartedAt,
+} from "./metrics-timeline.js";
+import { getTraces } from "./traces.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const III_PORT = 3111;
@@ -73,9 +81,7 @@ async function getTailscaleUrl(): Promise<string> {
       key: "published_url",
     });
     if (published?.url) return published.url;
-  } catch {
-    // state unavailable, fall through
-  }
+  } catch {}
 
   return new Promise((resolve) => {
     execFile(
@@ -128,15 +134,15 @@ function corsHeaders(): Record<string, string> {
 function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
   if (!API_TOKEN) return true;
   const auth = req.headers["authorization"] || "";
-  if (auth !== `Bearer ${API_TOKEN}`) {
-    res.writeHead(401, {
-      ...corsHeaders(),
-      "content-type": "application/json",
-    });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
-    return false;
-  }
-  return true;
+  const url = new URL(req.url || "", `http://${req.headers.host}`);
+  const queryToken = url.searchParams.get("token");
+  if (auth === `Bearer ${API_TOKEN}` || queryToken === API_TOKEN) return true;
+  res.writeHead(401, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ error: "Unauthorized" }));
+  return false;
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -352,15 +358,18 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
 
               if (event.type === "result") {
                 totalCost = event.cost_usd ?? event.total_cost_usd ?? totalCost;
-                inputTokens = event.input_tokens ?? inputTokens;
-                outputTokens = event.output_tokens ?? outputTokens;
+                const usage = event.usage || {};
+                inputTokens =
+                  (usage.input_tokens || 0) +
+                    (usage.cache_read_input_tokens || 0) +
+                    (usage.cache_creation_input_tokens || 0) || inputTokens;
+                outputTokens =
+                  usage.output_tokens || event.output_tokens || outputTokens;
               }
 
               writeChatEvent(requestId, eventIndex++, event);
               safeWrite(`data: ${JSON.stringify(event)}\n\n`);
-            } catch {
-              // skip unparseable lines
-            }
+            } catch {}
           }
         });
 
@@ -382,14 +391,17 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
               if (event.session_id) lastSessionId = event.session_id;
               if (event.type === "result") {
                 totalCost = event.cost_usd ?? event.total_cost_usd ?? totalCost;
-                inputTokens = event.input_tokens ?? inputTokens;
-                outputTokens = event.output_tokens ?? outputTokens;
+                const usage = event.usage || {};
+                inputTokens =
+                  (usage.input_tokens || 0) +
+                    (usage.cache_read_input_tokens || 0) +
+                    (usage.cache_creation_input_tokens || 0) || inputTokens;
+                outputTokens =
+                  usage.output_tokens || event.output_tokens || outputTokens;
               }
               writeChatEvent(requestId, eventIndex++, event);
               safeWrite(`data: ${JSON.stringify(event)}\n\n`);
-            } catch {
-              // skip
-            }
+            } catch {}
           }
 
           const duration = Date.now() - startTime;
@@ -425,9 +437,8 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
             inputTokens,
             outputTokens,
             duration,
+            exitCode: code,
           }).catch(() => {});
-
-          deleteChatGroup(requestId);
 
           if (
             safeWrite(
@@ -449,7 +460,6 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
               error: (e as Error)?.message,
             });
           });
-          deleteChatGroup(requestId);
 
           span.setAttribute("chat.error", err.message);
           span.setAttribute("chat.status", "error");
@@ -576,9 +586,7 @@ async function handleSessions(
         source: "web",
       }));
     }
-  } catch {
-    // iii engine unavailable
-  }
+  } catch {}
 
   const all = [...webSessions, ...terminalSessions].sort(
     (a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime(),
@@ -635,13 +643,9 @@ async function handleSessionHistory(
           statSync(candidate);
           filePath = candidate;
           break;
-        } catch {
-          // not in this project
-        }
+        } catch {}
       }
-    } catch {
-      // projects dir unreadable
-    }
+    } catch {}
   }
 
   if (!filePath) {
@@ -702,9 +706,7 @@ async function handleSessionHistory(
           content: text,
           ...(tools.length > 0 ? { tools } : {}),
         });
-      } catch {
-        // skip unparseable lines
-      }
+      } catch {}
     }
   } catch {
     jsonError(res, 500, "Failed to read session");
@@ -759,9 +761,7 @@ async function handleSettings(
       );
     });
     mcpServers = JSON.parse(result);
-  } catch {
-    // no MCP servers or command failed
-  }
+  } catch {}
 
   res.writeHead(200, {
     ...corsHeaders(),
@@ -783,9 +783,7 @@ async function handleHealth(
       state.list({ scope: "active_chats" }),
       getSessionIndex().then((s) => s.length),
     ]);
-  } catch {
-    // state unavailable
-  }
+  } catch {}
 
   const workerMetrics = metricsCollector.collect();
 
@@ -817,6 +815,69 @@ async function handleHealth(
       },
     }),
   );
+}
+
+async function handleUsage(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const stats = await getUsageStats(7);
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ usage: stats }));
+}
+
+async function handleChatReplay(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const events = await listChatEvents(requestId);
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ requestId, events, count: events.length }));
+}
+
+function handleChatActive(_req: IncomingMessage, res: ServerResponse): void {
+  const active = Array.from(activeProcesses.keys()).map((id) => ({
+    requestId: id,
+  }));
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ active, count: active.length }));
+}
+
+async function handleMetricsTimeline(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const [timeline, alerts] = await Promise.all([
+    getTimeline(),
+    getActiveAlerts(),
+  ]);
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ timeline, alerts, startedAt: workerStartedAt }));
+}
+
+async function handleTraces(
+  _req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const traces = await getTraces(100);
+  res.writeHead(200, {
+    ...corsHeaders(),
+    "content-type": "application/json",
+  });
+  res.end(JSON.stringify({ traces, count: traces.length }));
 }
 
 let server: Server | null = null;
@@ -861,7 +922,10 @@ export function startProxy(): Promise<void> {
 
       if (!checkAuth(req, res)) return;
 
-      if (method === "GET" && url === "/health") {
+      const parsedUrl = new URL(url, `http://${req.headers.host}`);
+      const pathname = parsedUrl.pathname;
+
+      if (method === "GET" && pathname === "/health") {
         handleHealth(req, res).catch(() => {
           if (!res.headersSent) {
             jsonError(res, 500, "Health check failed");
@@ -870,17 +934,17 @@ export function startProxy(): Promise<void> {
         return;
       }
 
-      if (method === "POST" && url === "/chat") {
+      if (method === "POST" && pathname === "/chat") {
         handleChat(req, res);
         return;
       }
 
-      if (method === "POST" && url === "/chat/stop") {
+      if (method === "POST" && pathname === "/chat/stop") {
         handleStopChat(req, res);
         return;
       }
 
-      if (method === "GET" && url === "/sessions") {
+      if (method === "GET" && pathname === "/sessions") {
         handleSessions(req, res).catch(() => {
           if (!res.headersSent) {
             jsonError(res, 500, "Failed to list sessions");
@@ -890,7 +954,7 @@ export function startProxy(): Promise<void> {
       }
 
       const sessionMatch =
-        method === "GET" && url.match(/^\/sessions\/([a-f0-9-]{36})$/);
+        method === "GET" && pathname.match(/^\/sessions\/([a-f0-9-]{36})$/);
       if (sessionMatch) {
         handleSessionHistory(req, res, sessionMatch[1]).catch(() => {
           if (!res.headersSent) {
@@ -900,7 +964,7 @@ export function startProxy(): Promise<void> {
         return;
       }
 
-      if (method === "GET" && url === "/qr") {
+      if (method === "GET" && pathname === "/qr") {
         handleQr(req, res).catch(() => {
           if (!res.headersSent) {
             jsonError(res, 500, "Failed to generate QR");
@@ -909,11 +973,51 @@ export function startProxy(): Promise<void> {
         return;
       }
 
-      if (method === "GET" && url === "/settings") {
+      if (method === "GET" && pathname === "/settings") {
         handleSettings(req, res).catch(() => {
           if (!res.headersSent) {
             jsonError(res, 500, "Failed to fetch settings");
           }
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/activity") {
+        handleActivitySSE(res);
+        return;
+      }
+
+      if (method === "GET" && pathname === "/usage") {
+        handleUsage(req, res).catch(() => {
+          if (!res.headersSent) jsonError(res, 500, "Failed to fetch usage");
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/chat/active") {
+        handleChatActive(req, res);
+        return;
+      }
+
+      const replayMatch =
+        method === "GET" && pathname.match(/^\/chat\/replay\/([a-f0-9-]{36})$/);
+      if (replayMatch) {
+        handleChatReplay(req, res, replayMatch[1]).catch(() => {
+          if (!res.headersSent) jsonError(res, 500, "Failed to replay chat");
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/metrics") {
+        handleMetricsTimeline(req, res).catch(() => {
+          if (!res.headersSent) jsonError(res, 500, "Failed to fetch metrics");
+        });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/traces") {
+        handleTraces(req, res).catch(() => {
+          if (!res.headersSent) jsonError(res, 500, "Failed to fetch traces");
         });
         return;
       }
@@ -940,7 +1044,7 @@ export function startProxy(): Promise<void> {
       req.pipe(proxyReq, { end: true });
     });
 
-    server.listen(PROXY_PORT, "127.0.0.1", () => {
+    server.listen(PROXY_PORT, "0.0.0.0", () => {
       logger.info("UI proxy listening", { port: PROXY_PORT });
       resolve();
     });

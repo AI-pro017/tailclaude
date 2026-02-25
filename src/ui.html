@@ -4,19 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TailClaude</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#0a0a0a;--surface:#141414;--border:#252525;--text:#e4e4e7;--muted:#71717a;--accent:#a78bfa;--accent-dim:#7c3aed;--user-bg:#1e1b4b;--assistant-bg:#1a1a1a;--code-bg:#1e1e2e;--danger:#ef4444;--success:#22c55e;--warning:#f59e0b}
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+:root{--bg:#141413;--surface:#1c1c1a;--border:#2a2a27;--text:#faf9f5;--muted:#b0aea5;--accent:#d97757;--accent-dim:#c4623f;--user-bg:#2a1f18;--assistant-bg:#1c1c1a;--code-bg:#1a1a18;--danger:#d97757;--success:#788c5d;--warning:#d97757;--info:#6a9bcc;--light-gray:#e8e6dc}
+html,body{height:100%;font-family:'Lora',Georgia,serif;background:var(--bg);color:var(--text)}
 #app{display:flex;height:100vh;height:100dvh}
 
 .sidebar{width:280px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:transform .2s ease}
 .sidebar-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.sidebar-header h1{font-size:16px;font-weight:600;letter-spacing:-.02em}
+.sidebar-header h1{font-size:16px;font-weight:600;letter-spacing:-.02em;font-family:'Poppins',Arial,sans-serif}
 .sidebar-header .actions{display:flex;gap:6px;align-items:center}
 .sidebar-header span{font-size:11px;color:var(--muted);background:var(--bg);padding:2px 8px;border-radius:10px}
 .icon-btn{background:none;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
 .icon-btn:hover{color:var(--text);border-color:var(--muted);background:var(--bg)}
+.icon-btn.active{color:var(--accent);border-color:var(--accent)}
 
 .controls{padding:12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
 .control-row{display:flex;gap:8px;align-items:center}
@@ -30,7 +34,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .pill:not(:first-child){border-left:none}
 .pill.active{background:var(--accent-dim);color:#fff;border-color:var(--accent-dim)}
 
-.new-chat{margin:0 12px 8px;padding:10px;background:var(--accent-dim);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:opacity .15s}
+.new-chat{margin:0 12px 8px;padding:10px;background:var(--accent-dim);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;transition:opacity .15s;font-family:'Poppins',Arial,sans-serif}
 .new-chat:hover{opacity:.85}
 .new-chat:disabled{opacity:.5;cursor:not-allowed}
 .sessions{flex:1;overflow-y:auto;padding:4px 8px}
@@ -42,21 +46,37 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .session-item .session-meta{font-size:10px;color:var(--muted);opacity:.7}
 .session-item .badges{display:flex;gap:4px;flex-shrink:0;align-items:center}
 .source-badge{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:600;text-transform:uppercase}
-.source-badge.web{background:#1e3a5f;color:#60a5fa}
-.source-badge.terminal{background:#1a3a2a;color:#4ade80}
-.tailscale-url{margin:0 12px 12px;padding:8px 10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);word-break:break-all;display:none}
+.source-badge.web{background:#1f2937;color:#6a9bcc}
+.source-badge.terminal{background:#1f2a1f;color:#788c5d}
+.tailscale-url{margin:0 12px 12px;padding:8px 10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);word-break:break-all;display:none;cursor:pointer;position:relative;overflow:hidden}
 .tailscale-url.visible{display:block}
-.tailscale-url a{color:var(--accent);text-decoration:none}
+.tailscale-url a{color:var(--accent);text-decoration:none;filter:blur(4px);transition:filter .2s ease}
+.tailscale-url:hover a{filter:none}
+.tailscale-url .url-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);pointer-events:none;transition:opacity .2s}
+.tailscale-url:hover .url-hint{opacity:0}
 
-.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.alert-banner{display:none;padding:8px 16px;background:#2a1f18;color:#d97757;font-size:12px;font-weight:500;text-align:center;border-bottom:1px solid #3a2a1e;animation:slideDown .2s ease;font-family:'Poppins',Arial,sans-serif}
+.alert-banner.visible{display:flex;align-items:center;justify-content:center;gap:8px}
+.alert-banner .alert-dismiss{background:none;border:none;color:#d97757;cursor:pointer;font-size:14px;padding:0 4px}
+@keyframes slideDown{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
+
 .topbar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted)}
 .hamburger{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1}
 .hamburger:hover{background:var(--border)}
 .topbar .session-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topbar .badge{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500;flex-shrink:0}
 .topbar .model{background:var(--accent-dim);color:#fff}
-.topbar .mode-badge{background:#1e3a5f;color:#60a5fa}
-.topbar .effort-badge{background:#3a2a1a;color:var(--warning)}
+.topbar .mode-badge{background:#1f2937;color:#6a9bcc}
+.topbar .effort-badge{background:#2a1f18;color:var(--accent)}
+
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto}
+.tab-btn{padding:8px 16px;font-size:12px;color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .15s;font-family:'Poppins',Arial,sans-serif}
+.tab-btn:hover{color:var(--text);background:var(--bg)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+.tab-content{display:none;flex:1;overflow-y:auto}
+.tab-content.active{display:flex;flex-direction:column}
 
 .messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;-webkit-overflow-scrolling:touch}
 .msg{max-width:720px;width:100%;margin:0 auto;padding:12px 16px;border-radius:12px;font-size:14px;line-height:1.65}
@@ -73,6 +93,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .tools-used{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .tool-badge{font-size:11px;background:var(--border);color:var(--muted);padding:2px 8px;border-radius:6px;animation:fadeIn .2s ease}
 @keyframes fadeIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+
+.reconnect-banner{display:none;padding:6px 16px;background:#1f2937;color:var(--info);font-size:12px;text-align:center;border-radius:8px;margin:8px 20px 0}
+.reconnect-banner.visible{display:block}
+
 .input-area{padding:12px 20px;border-top:1px solid var(--border);background:var(--surface)}
 .input-wrap{max-width:720px;margin:0 auto;display:flex;gap:8px;align-items:flex-end}
 .input-wrap textarea{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:16px;font-family:inherit;resize:none;min-height:42px;max-height:200px;line-height:1.5;outline:none;transition:border-color .15s}
@@ -84,13 +108,92 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .input-wrap button:disabled{opacity:.4;cursor:not-allowed}
 .status-bar{padding:6px 20px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
 .empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;color:var(--muted);padding:20px}
-.empty h2{font-size:24px;font-weight:600;color:var(--text)}
+.empty h2{font-size:24px;font-weight:600;color:var(--text);font-family:'Poppins',Arial,sans-serif}
 .empty p{font-size:14px;text-align:center}
 .loading{display:inline-flex;gap:4px;padding:8px 0}
 .loading span{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:bounce .6s infinite alternate}
 .loading span:nth-child(2){animation-delay:.15s}
 .loading span:nth-child(3){animation-delay:.3s}
 @keyframes bounce{to{opacity:.3;transform:translateY(-6px)}}
+
+.activity-sidebar{width:300px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;flex-shrink:0;transition:all .2s ease}
+.activity-sidebar.open{display:flex}
+.activity-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.activity-header h3{font-size:13px;font-weight:600}
+.activity-header .badge-count{font-size:10px;background:var(--accent-dim);color:#fff;padding:1px 6px;border-radius:8px;display:none}
+.activity-header .badge-count.visible{display:inline}
+.activity-list{flex:1;overflow-y:auto;padding:8px}
+.activity-item{padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:4px;display:flex;gap:8px;align-items:flex-start;animation:fadeIn .2s ease}
+.activity-item .activity-icon{width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;margin-top:1px}
+.activity-icon.chat_started{background:#1f2937;color:var(--info)}
+.activity-icon.chat_completed{background:#1f2a1f;color:var(--success)}
+.activity-icon.chat_stopped{background:#2a1f18;color:var(--accent)}
+.activity-icon.session_indexed{background:var(--border);color:var(--muted)}
+.activity-icon.cleanup{background:var(--border);color:var(--muted)}
+.activity-icon.alert{background:#2a1f18;color:var(--accent)}
+.activity-item .activity-body{flex:1;min-width:0}
+.activity-item .activity-msg{color:var(--text);word-break:break-word}
+.activity-item .activity-time{font-size:10px;color:var(--muted);margin-top:2px}
+
+.panel{padding:20px;max-width:720px;margin:0 auto;width:100%}
+.panel h3{font-size:16px;font-weight:600;margin-bottom:16px;font-family:'Poppins',Arial,sans-serif}
+.panel-section{margin-bottom:24px}
+.panel-section h4{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+.stat-card .stat-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.stat-card .stat-value{font-size:20px;font-weight:600;font-family:'Poppins',Arial,sans-serif}
+.stat-card .stat-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+.bar-chart{display:flex;align-items:flex-end;gap:6px;height:100px;padding:8px 0}
+.bar-chart .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar-chart .bar{width:100%;border-radius:4px 4px 0 0;background:var(--accent-dim);min-height:2px;transition:height .3s ease}
+.bar-chart .bar-label{font-size:9px;color:var(--muted)}
+.bar-chart .bar-value{font-size:9px;color:var(--text)}
+
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.metrics-grid{grid-template-columns:1fr}}
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative;overflow:hidden;transition:border-color .2s}
+.metric-card:hover{border-color:color-mix(in srgb,var(--metric-color) 40%,transparent)}
+.metric-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.metric-info{display:flex;flex-direction:column;gap:2px}
+.metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:500;display:flex;align-items:center;gap:6px;font-family:'Poppins',Arial,sans-serif}
+.metric-label::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--metric-color);opacity:.7;animation:blink 2s infinite}
+.metric-value{font-size:28px;font-weight:700;letter-spacing:-.02em;color:var(--metric-color);transition:color .3s;font-family:'Poppins',Arial,sans-serif}
+.metric-unit{font-size:13px;font-weight:400;color:var(--muted);margin-left:2px}
+.metric-stats{display:flex;gap:14px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;flex-shrink:0}
+.metric-stat{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.metric-stat-val{font-size:12px;font-weight:600;color:var(--text)}
+.metric-chart{height:80px;position:relative;margin-top:4px}
+.metric-chart svg{width:100%;height:100%;overflow:visible}
+.metric-chart .area{transition:d .4s ease}
+.metric-chart .line{transition:d .4s ease}
+.metric-chart .grid-line{stroke:var(--border);stroke-width:.5;stroke-dasharray:3,3}
+.metric-chart .dot{transition:all .3s ease}
+.metric-pulse{display:none}
+.metrics-refresh{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:12px}
+.metrics-refresh .refresh-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.metric-time-axis{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:2px;padding:0 2px;opacity:.6}
+.uptime-visual{padding:12px 0 4px;display:flex;align-items:center;gap:10px}
+.uptime-bar{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;position:relative}
+.uptime-bar-fill{height:100%;background:linear-gradient(90deg,#788c5d 0%,#5f7348 100%);border-radius:3px;transition:width .5s ease}
+.uptime-segments{display:flex;gap:3px;flex:1}
+.uptime-seg{flex:1;height:20px;border-radius:3px;transition:background .3s}
+.uptime-seg.up{background:linear-gradient(180deg,rgba(120,140,93,.3) 0%,rgba(120,140,93,.08) 100%)}
+.uptime-seg.empty{background:var(--border);opacity:.3}
+
+.traces-table{width:100%;font-size:12px;border-collapse:collapse}
+.traces-table th{text-align:left;padding:8px 10px;color:var(--muted);border-bottom:1px solid var(--border);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.traces-table td{padding:8px 10px;border-bottom:1px solid var(--border)}
+.traces-table tr:hover td{background:var(--bg)}
+.traces-table .trace-success{color:#788c5d}
+.traces-table .trace-error{color:#d97757}
+.traces-table .trace-stopped{color:#b0aea5}
+.trace-summary{display:flex;gap:16px;margin-bottom:16px}
+.trace-summary .trace-stat{font-size:12px;color:var(--muted)}
+.trace-summary .trace-stat strong{color:var(--text);font-weight:600}
 
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9}
 .modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;z-index:11;width:min(380px,90vw);max-height:80vh;overflow-y:auto}
@@ -121,6 +224,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   .hamburger{display:block}
   .msg{max-width:100%}
   .overlay.visible{display:block}
+  .activity-sidebar{position:fixed;top:0;right:0;bottom:0;z-index:10;transform:translateX(100%)}
+  .activity-sidebar.open{transform:translateX(0);display:flex}
 }
 </style>
 </head>
@@ -133,7 +238,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="actions">
         <button class="icon-btn" id="qrBtn" title="QR Code">&#9641;</button>
         <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
-        <span>v0.1</span>
+        <span>v0.2</span>
       </div>
     </div>
     <div class="controls">
@@ -169,25 +274,138 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="tailscale-url" id="tailscaleUrl"></div>
   </div>
   <div class="main">
+    <div class="alert-banner" id="alertBanner">
+      <span id="alertText"></span>
+      <button class="alert-dismiss" id="alertDismiss">&times;</button>
+    </div>
     <div class="topbar">
       <button class="hamburger" id="menuBtn">&#9776;</button>
       <span class="session-name" id="sessionInfo">No active session</span>
       <span class="badge model" id="modelBadge">opus</span>
       <span class="badge mode-badge" id="modeBadge">default</span>
       <span class="badge effort-badge" id="effortBadge">medium</span>
+      <button class="icon-btn" id="activityToggle" title="Activity Feed">&#9656;</button>
     </div>
-    <div class="messages" id="messages">
-      <div class="empty">
-        <h2>TailClaude v0.1</h2>
-        <p>Claude Code on your tailnet with streaming, session sharing, and full controls</p>
-        <p style="font-size:12px">Click "+ New Chat" or resume a terminal session from the sidebar</p>
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="usage">Usage</button>
+      <button class="tab-btn" data-tab="metrics">Metrics</button>
+      <button class="tab-btn" data-tab="traces">Traces</button>
+    </div>
+    <div class="tab-content active" id="tab-chat">
+      <div class="reconnect-banner" id="reconnectBanner"></div>
+      <div class="messages" id="messages">
+        <div class="empty">
+          <h2>TailClaude v0.2</h2>
+          <p>Claude Code on your tailnet — now with live activity, usage tracking, metrics &amp; traces</p>
+          <p style="font-size:12px">Click "+ New Chat" or resume a terminal session from the sidebar</p>
+        </div>
+      </div>
+      <div class="input-area">
+        <div class="input-wrap">
+          <textarea id="input" placeholder="Send a message..." rows="1" disabled></textarea>
+          <button id="send" class="btn-send" disabled>Send</button>
+          <button id="stop" class="btn-stop" style="display:none">Stop</button>
+        </div>
       </div>
     </div>
-    <div class="input-area">
-      <div class="input-wrap">
-        <textarea id="input" placeholder="Send a message..." rows="1" disabled></textarea>
-        <button id="send" class="btn-send" disabled>Send</button>
-        <button id="stop" class="btn-stop" style="display:none">Stop</button>
+    <div class="tab-content" id="tab-usage">
+      <div class="panel">
+        <h3>Cost &amp; Usage</h3>
+        <div class="stat-grid" id="usageStats">
+          <div class="stat-card"><div class="stat-label">Today's Cost</div><div class="stat-value" id="todayCost">$0.00</div></div>
+          <div class="stat-card"><div class="stat-label">Today's Requests</div><div class="stat-value" id="todayRequests">0</div></div>
+          <div class="stat-card"><div class="stat-label">Input Tokens</div><div class="stat-value" id="todayInput">0</div></div>
+          <div class="stat-card"><div class="stat-label">Output Tokens</div><div class="stat-value" id="todayOutput">0</div></div>
+        </div>
+        <div class="panel-section">
+          <h4>7-Day Cost Trend</h4>
+          <div class="bar-chart" id="usageChart"></div>
+        </div>
+        <div class="panel-section">
+          <div class="stat-card"><div class="stat-label">Total Accumulated Cost</div><div class="stat-value" id="totalCostAll">$0.00</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-content" id="tab-metrics">
+      <div class="panel">
+        <h3>System Metrics</h3>
+        <div class="metrics-grid">
+          <div class="metric-card" style="--metric-color:#d97757" id="cardMemory">
+            <div class="metric-header">
+              <div class="metric-info">
+                <span class="metric-label">Memory RSS</span>
+                <span class="metric-value" id="metricMemory">--<span class="metric-unit">MB</span></span>
+              </div>
+              <div class="metric-stats">
+                <div class="metric-stat"><span>Min</span><span class="metric-stat-val" id="memMin">--</span></div>
+                <div class="metric-stat"><span>Max</span><span class="metric-stat-val" id="memMax">--</span></div>
+                <div class="metric-stat"><span>Avg</span><span class="metric-stat-val" id="memAvg">--</span></div>
+              </div>
+            </div>
+            <div class="metric-chart" id="chartMemory"></div>
+            <div class="metric-time-axis" id="timeMemory"></div>
+          </div>
+          <div class="metric-card" style="--metric-color:#6a9bcc" id="cardCpu">
+            <div class="metric-header">
+              <div class="metric-info">
+                <span class="metric-label">CPU Usage</span>
+                <span class="metric-value" id="metricCpu">--<span class="metric-unit">%</span></span>
+              </div>
+              <div class="metric-stats">
+                <div class="metric-stat"><span>Min</span><span class="metric-stat-val" id="cpuMin">--</span></div>
+                <div class="metric-stat"><span>Max</span><span class="metric-stat-val" id="cpuMax">--</span></div>
+                <div class="metric-stat"><span>Avg</span><span class="metric-stat-val" id="cpuAvg">--</span></div>
+              </div>
+            </div>
+            <div class="metric-chart" id="chartCpu"></div>
+            <div class="metric-time-axis" id="timeCpu"></div>
+          </div>
+          <div class="metric-card" style="--metric-color:#b0aea5" id="cardLag">
+            <div class="metric-header">
+              <div class="metric-info">
+                <span class="metric-label">Event Loop Lag</span>
+                <span class="metric-value" id="metricLag">--<span class="metric-unit">ms</span></span>
+              </div>
+              <div class="metric-stats">
+                <div class="metric-stat"><span>Min</span><span class="metric-stat-val" id="lagMin">--</span></div>
+                <div class="metric-stat"><span>Max</span><span class="metric-stat-val" id="lagMax">--</span></div>
+                <div class="metric-stat"><span>Avg</span><span class="metric-stat-val" id="lagAvg">--</span></div>
+              </div>
+            </div>
+            <div class="metric-chart" id="chartLag"></div>
+            <div class="metric-time-axis" id="timeLag"></div>
+          </div>
+          <div class="metric-card" style="--metric-color:#788c5d" id="cardUptime">
+            <div class="metric-header">
+              <div class="metric-info">
+                <span class="metric-label">Worker Uptime</span>
+                <span class="metric-value" id="metricUptime">--</span>
+              </div>
+              <div class="metric-stats">
+                <div class="metric-stat"><span>Started</span><span class="metric-stat-val" id="uptimeStarted">--</span></div>
+                <div class="metric-stat"><span>Snapshots</span><span class="metric-stat-val" id="uptimeSnapshots">--</span></div>
+              </div>
+            </div>
+            <div class="uptime-visual" id="uptimeVisual"></div>
+          </div>
+        </div>
+        <div class="metrics-refresh">
+          <span class="refresh-dot"></span>
+          <span>Live — auto-refreshes every 30s</span>
+        </div>
+      </div>
+    </div>
+    <div class="tab-content" id="tab-traces">
+      <div class="panel">
+        <h3>Request Traces</h3>
+        <div class="trace-summary" id="traceSummary"></div>
+        <table class="traces-table">
+          <thead>
+            <tr><th>Time</th><th>Model</th><th>Duration</th><th>Cost</th><th>Tokens In</th><th>Tokens Out</th><th>Status</th></tr>
+          </thead>
+          <tbody id="tracesBody"></tbody>
+        </table>
       </div>
     </div>
     <div class="status-bar">
@@ -196,6 +414,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <span id="sessionCount"></span>
       <span id="costDisplay"></span>
     </div>
+  </div>
+  <div class="activity-sidebar" id="activitySidebar">
+    <div class="activity-header">
+      <h3>Activity Feed</h3>
+      <span class="badge-count" id="activityBadge">0</span>
+      <button class="icon-btn" id="activityClose" title="Close">&times;</button>
+    </div>
+    <div class="activity-list" id="activityList"></div>
   </div>
 </div>
 
@@ -260,6 +486,12 @@ const $sidebar = $('#sidebar')
 const $overlay = $('#overlay')
 const $menuBtn = $('#menuBtn')
 const $tailscaleUrl = $('#tailscaleUrl')
+const $activitySidebar = $('#activitySidebar')
+const $activityList = $('#activityList')
+const $activityBadge = $('#activityBadge')
+const $alertBanner = $('#alertBanner')
+const $alertText = $('#alertText')
+const $reconnectBanner = $('#reconnectBanner')
 
 let currentSession = null
 let sessions = []
@@ -271,6 +503,10 @@ let streamedText = ''
 let streamedTools = []
 let sessionNames = JSON.parse(localStorage.getItem('tc_names') || '{}')
 let connected = false
+let activityOpen = false
+let activityEventSource = null
+let newActivityCount = 0
+let activeTab = 'chat'
 
 function saveNames() {
   localStorage.setItem('tc_names', JSON.stringify(sessionNames))
@@ -326,6 +562,23 @@ function authHeaders() {
   if (API_TOKEN) h['authorization'] = `Bearer ${API_TOKEN}`
   return h
 }
+function tokenQuery() {
+  return API_TOKEN ? `?token=${encodeURIComponent(API_TOKEN)}` : ''
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
+    btn.classList.add('active')
+    const tab = btn.dataset.tab
+    document.getElementById('tab-' + tab).classList.add('active')
+    activeTab = tab
+    if (tab === 'usage') loadUsage()
+    if (tab === 'metrics') loadMetrics()
+    if (tab === 'traces') loadTraces()
+  }
+})
 
 function toggleSidebar(show) {
   const open = show ?? !$sidebar.classList.contains('open')
@@ -367,6 +620,366 @@ $('#qrBtn').onclick = () => {
 }
 $('#qrClose').onclick = hideModals
 $('#renameClose').onclick = hideModals
+
+$('#activityToggle').onclick = () => {
+  activityOpen = !activityOpen
+  $activitySidebar.classList.toggle('open', activityOpen)
+  $('#activityToggle').classList.toggle('active', activityOpen)
+  if (activityOpen) {
+    newActivityCount = 0
+    $activityBadge.textContent = '0'
+    $activityBadge.classList.remove('visible')
+  }
+}
+$('#activityClose').onclick = () => {
+  activityOpen = false
+  $activitySidebar.classList.remove('open')
+  $('#activityToggle').classList.remove('active')
+}
+$('#alertDismiss').onclick = () => {
+  $alertBanner.classList.remove('visible')
+}
+
+function connectActivitySSE() {
+  if (activityEventSource) activityEventSource.close()
+  const url = '/activity' + tokenQuery()
+  activityEventSource = new EventSource(url)
+
+  activityEventSource.onmessage = (e) => {
+    try {
+      const event = JSON.parse(e.data)
+      addActivityItem(event)
+
+      if (event.type === 'alert') {
+        $alertText.textContent = event.message
+        $alertBanner.classList.add('visible')
+      }
+    } catch {}
+  }
+
+  activityEventSource.onerror = () => {
+    setTimeout(connectActivitySSE, 5000)
+  }
+}
+
+const ACTIVITY_ICONS = {
+  chat_started: '\u25B6',
+  chat_completed: '\u2713',
+  chat_stopped: '\u25A0',
+  session_indexed: '\u2261',
+  cleanup: '\u2672',
+  alert: '\u26A0'
+}
+
+function addActivityItem(event) {
+  const div = document.createElement('div')
+  div.className = 'activity-item'
+
+  const icon = ACTIVITY_ICONS[event.type] || '\u2022'
+  const timeStr = formatRelative(event.timestamp)
+
+  div.innerHTML = `
+    <div class="activity-icon ${escapeHtml(event.type)}">${icon}</div>
+    <div class="activity-body">
+      <div class="activity-msg">${escapeHtml(event.message)}</div>
+      <div class="activity-time">${escapeHtml(timeStr)}</div>
+    </div>`
+
+  $activityList.appendChild(div)
+
+  if ($activityList.scrollHeight - $activityList.scrollTop < $activityList.clientHeight + 60) {
+    $activityList.scrollTop = $activityList.scrollHeight
+  }
+
+  if (!activityOpen) {
+    newActivityCount++
+    $activityBadge.textContent = String(newActivityCount)
+    $activityBadge.classList.add('visible')
+  }
+}
+
+function formatRelative(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now - d
+  const diffSec = Math.floor(diffMs / 1000)
+  if (diffSec < 5) return 'just now'
+  if (diffSec < 60) return `${diffSec}s ago`
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  return `${Math.floor(diffMin / 60)}h ago`
+}
+
+async function loadUsage() {
+  try {
+    const res = await fetch('/usage', { headers: authHeaders() })
+    const data = await res.json()
+    const usage = data.usage || []
+
+    const today = new Date().toISOString().slice(0, 10)
+    const todayData = usage.find(u => u.date === today)
+
+    $('#todayCost').textContent = '$' + (todayData?.totalCost || 0).toFixed(4)
+    $('#todayRequests').textContent = String(todayData?.requestCount || 0)
+    $('#todayInput').textContent = (todayData?.totalInputTokens || 0).toLocaleString()
+    $('#todayOutput').textContent = (todayData?.totalOutputTokens || 0).toLocaleString()
+
+    let totalAll = 0
+    usage.forEach(u => totalAll += u.totalCost || 0)
+    $('#totalCostAll').textContent = '$' + totalAll.toFixed(4)
+
+    renderBarChart(usage.slice(0, 7).reverse())
+  } catch {}
+}
+
+function renderBarChart(days) {
+  const chart = $('#usageChart')
+  if (!days.length) {
+    chart.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center">No usage data yet</div>'
+    return
+  }
+  const maxCost = Math.max(...days.map(d => d.totalCost || 0), 0.001)
+  chart.innerHTML = days.map(d => {
+    const pct = ((d.totalCost || 0) / maxCost * 100).toFixed(0)
+    const label = d.date.slice(5)
+    const val = '$' + (d.totalCost || 0).toFixed(3)
+    return `<div class="bar-col">
+      <div class="bar-value">${val}</div>
+      <div class="bar" style="height:${pct}%"></div>
+      <div class="bar-label">${label}</div>
+    </div>`
+  }).join('')
+}
+
+let metricsChartUid = 0
+
+async function loadMetrics() {
+  try {
+    const res = await fetch('/metrics', { headers: authHeaders() })
+    const data = await res.json()
+    const timeline = data.timeline || []
+    const alerts = data.alerts || []
+    const timestamps = timeline.map(t => t.ts)
+
+    const memVals = timeline.map(t => t.memory_rss / (1024 * 1024))
+    const cpuVals = timeline.map(t => t.cpu_percent)
+    const lagVals = timeline.map(t => t.event_loop_lag_ms)
+
+    if (timeline.length > 0) {
+      const last = timeline[timeline.length - 1]
+      setMetricValue('metricMemory', (last.memory_rss / (1024*1024)).toFixed(1), 'MB')
+      setMetricValue('metricCpu', last.cpu_percent.toFixed(1), '%')
+      setMetricValue('metricLag', last.event_loop_lag_ms.toFixed(1), 'ms')
+    }
+
+    renderAreaChart('chartMemory', memVals, '#d97757', 'mem', timestamps, 'timeMemory')
+    renderAreaChart('chartCpu', cpuVals, '#6a9bcc', 'cpu', timestamps, 'timeCpu')
+    renderAreaChart('chartLag', lagVals, '#b0aea5', 'lag', timestamps, 'timeLag')
+
+    setMetricStats(memVals, 'mem', 1)
+    setMetricStats(cpuVals, 'cpu', 1)
+    setMetricStats(lagVals, 'lag', 1)
+
+    renderUptime(data.startedAt, timeline.length)
+
+    if (alerts.length > 0) {
+      const msg = alerts.map(a => a.type?.replace('_', ' ')).join(', ')
+      $alertText.textContent = msg
+      $alertBanner.classList.add('visible')
+    }
+  } catch {}
+}
+
+function setMetricValue(id, val, unit) {
+  const el = document.getElementById(id)
+  if (!el) return
+  el.innerHTML = val + (unit ? `<span class="metric-unit">${unit}</span>` : '')
+}
+
+function setMetricStats(values, prefix, decimals) {
+  if (!values.length) return
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const avg = values.reduce((a, b) => a + b, 0) / values.length
+  const fmt = v => decimals > 0 ? v.toFixed(decimals) : String(Math.round(v))
+  const $min = document.getElementById(prefix + 'Min')
+  const $max = document.getElementById(prefix + 'Max')
+  const $avg = document.getElementById(prefix + 'Avg')
+  if ($min) $min.textContent = fmt(min)
+  if ($max) $max.textContent = fmt(max)
+  if ($avg) $avg.textContent = fmt(avg)
+}
+
+function renderAreaChart(containerId, values, color, uid, timestamps, timeAxisId) {
+  const container = document.getElementById(containerId)
+  if (!container) return
+  const gradId = 'grad_' + uid + '_' + (++metricsChartUid)
+
+  if (!values.length) {
+    container.innerHTML = `<svg viewBox="0 0 300 80" preserveAspectRatio="none">
+      <text x="150" y="45" text-anchor="middle" fill="var(--muted)" font-size="11">Waiting for data...</text>
+    </svg>`
+    return
+  }
+
+  const w = 300, h = 80, pad = 1
+  const max = Math.max(...values, 1) * 1.1
+  const step = w / Math.max(values.length - 1, 1)
+
+  const points = values.map((v, i) => {
+    const x = (i * step).toFixed(2)
+    const y = (h - pad - (v / max) * (h - pad * 2)).toFixed(2)
+    return { x: parseFloat(x), y: parseFloat(y) }
+  })
+
+  const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ',' + p.y).join(' ')
+  const areaPath = linePath + ` L${points[points.length-1].x},${h} L${points[0].x},${h} Z`
+
+  const gridLines = [0.25, 0.5, 0.75].map(pct => {
+    const y = (h - pad - pct * (h - pad * 2)).toFixed(1)
+    return `<line x1="0" y1="${y}" x2="${w}" y2="${y}" class="grid-line"/>`
+  }).join('')
+
+  const lastPt = points[points.length - 1]
+
+  container.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <path d="${areaPath}" fill="url(#${gradId})" class="area"/>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" class="line"/>
+    <circle cx="${lastPt.x}" cy="${lastPt.y}" r="3" fill="${color}" class="dot"/>
+    <circle cx="${lastPt.x}" cy="${lastPt.y}" r="6" fill="${color}" opacity="0.2" class="dot"/>
+  </svg>`
+
+  if (timeAxisId && timestamps && timestamps.length > 1) {
+    const timeEl = document.getElementById(timeAxisId)
+    if (timeEl) {
+      const first = new Date(timestamps[0])
+      const last = new Date(timestamps[timestamps.length - 1])
+      const mid = new Date(timestamps[Math.floor(timestamps.length / 2)])
+      const fmt = d => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timeEl.innerHTML = `<span>${fmt(first)}</span><span>${fmt(mid)}</span><span>${fmt(last)}</span>`
+    }
+  }
+}
+
+function renderUptime(startedAt, snapshotCount) {
+  if (!startedAt) return
+  const start = new Date(startedAt)
+  const now = new Date()
+  const diffMs = now - start
+  const diffSec = Math.floor(diffMs / 1000)
+  const days = Math.floor(diffSec / 86400)
+  const hours = Math.floor((diffSec % 86400) / 3600)
+  const mins = Math.floor((diffSec % 3600) / 60)
+
+  let uptimeStr = ''
+  if (days > 0) uptimeStr = `${days}d ${hours}h`
+  else if (hours > 0) uptimeStr = `${hours}h ${mins}m`
+  else uptimeStr = `${mins}m`
+
+  setMetricValue('metricUptime', uptimeStr, '')
+
+  const $started = document.getElementById('uptimeStarted')
+  if ($started) $started.textContent = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const $snaps = document.getElementById('uptimeSnapshots')
+  if ($snaps) $snaps.textContent = String(snapshotCount)
+
+  const $visual = document.getElementById('uptimeVisual')
+  if (!$visual) return
+  const totalSlots = 30
+  const filledSlots = Math.min(snapshotCount, totalSlots)
+  const segs = Array.from({ length: totalSlots }, (_, i) =>
+    `<div class="uptime-seg ${i < filledSlots ? 'up' : 'empty'}"></div>`
+  ).join('')
+  $visual.innerHTML = `<div class="uptime-segments">${segs}</div>`
+}
+
+async function loadTraces() {
+  try {
+    const res = await fetch('/traces', { headers: authHeaders() })
+    const data = await res.json()
+    const traces = data.traces || []
+
+    const today = new Date().toISOString().slice(0, 10)
+    const todayTraces = traces.filter(t => t.timestamp?.startsWith(today))
+    const avgDuration = todayTraces.length ? todayTraces.reduce((s, t) => s + (t.duration || 0), 0) / todayTraces.length : 0
+    const avgCost = todayTraces.length ? todayTraces.reduce((s, t) => s + (t.cost || 0), 0) / todayTraces.length : 0
+
+    $('#traceSummary').innerHTML = `
+      <div class="trace-stat">Avg Duration: <strong>${(avgDuration / 1000).toFixed(1)}s</strong></div>
+      <div class="trace-stat">Avg Cost: <strong>$${avgCost.toFixed(4)}</strong></div>
+      <div class="trace-stat">Today: <strong>${todayTraces.length} requests</strong></div>`
+
+    const tbody = $('#tracesBody')
+    tbody.innerHTML = traces.slice(0, 50).map(t => {
+      const time = t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : '--'
+      const dur = t.duration ? (t.duration / 1000).toFixed(1) + 's' : '--'
+      const cost = t.cost ? '$' + t.cost.toFixed(4) : '--'
+      const tokIn = t.inputTokens ? t.inputTokens.toLocaleString() : '--'
+      const tokOut = t.outputTokens ? t.outputTokens.toLocaleString() : '--'
+      let statusClass = 'trace-stopped'
+      let statusText = 'stopped'
+      if (t.reason) {
+        statusClass = 'trace-stopped'
+        statusText = t.reason
+      } else if (t.exitCode === 0) {
+        statusClass = 'trace-success'
+        statusText = 'success'
+      } else if (t.exitCode != null) {
+        statusClass = 'trace-error'
+        statusText = 'exit ' + t.exitCode
+      }
+      return `<tr>
+        <td>${escapeHtml(time)}</td>
+        <td>${escapeHtml(t.model || '--')}</td>
+        <td>${dur}</td>
+        <td>${cost}</td>
+        <td>${tokIn}</td>
+        <td>${tokOut}</td>
+        <td class="${statusClass}">${escapeHtml(statusText)}</td>
+      </tr>`
+    }).join('')
+  } catch {}
+}
+
+async function checkActiveChats() {
+  try {
+    const res = await fetch('/chat/active', { headers: authHeaders() })
+    const data = await res.json()
+    if (data.active && data.active.length > 0) {
+      const active = data.active[0]
+      const replayRes = await fetch(`/chat/replay/${active.requestId}`, { headers: authHeaders() })
+      const replayData = await replayRes.json()
+
+      if (replayData.events && replayData.events.length > 0) {
+        $reconnectBanner.textContent = `Reconnected \u2014 replaying ${replayData.events.length} events`
+        $reconnectBanner.classList.add('visible')
+
+        for (const evt of replayData.events) {
+          if (evt.data?.type === 'assistant' && evt.data?.message?.content) {
+            const content = evt.data.message.content
+            if (Array.isArray(content)) {
+              for (const block of content) {
+                if (block.type === 'text' && block.text) {
+                  addMessage('assistant', block.text)
+                }
+              }
+            }
+          }
+        }
+
+        setTimeout(() => $reconnectBanner.classList.remove('visible'), 5000)
+      }
+    }
+  } catch {}
+}
 
 async function loadSettings() {
   try {
@@ -441,15 +1054,17 @@ async function checkHealth() {
     }
 
     if (data.publishedUrl) {
-      $tailscaleUrl.textContent = ''
+      $tailscaleUrl.innerHTML = ''
       const a = document.createElement('a')
       a.href = data.publishedUrl
       a.target = '_blank'
       a.rel = 'noopener noreferrer'
       a.textContent = data.publishedUrl
-      a.style.color = 'var(--accent)'
-      a.style.textDecoration = 'none'
       $tailscaleUrl.appendChild(a)
+      const hint = document.createElement('span')
+      hint.className = 'url-hint'
+      hint.textContent = 'Hover to reveal Tailscale URL'
+      $tailscaleUrl.appendChild(hint)
       $tailscaleUrl.classList.add('visible')
     }
   } catch {
@@ -510,7 +1125,7 @@ function renderSessions() {
     <div class="session-item ${s.id === currentSession?.id ? 'active' : ''}" data-id="${s.id}">
       <div class="session-info">
         <span class="name">${escapeHtml(displayName(s))}</span>
-        <span class="session-meta">${escapeHtml(date)}${msgCount ? ' · ' + msgCount : ''}</span>
+        <span class="session-meta">${escapeHtml(date)}${msgCount ? ' \u00B7 ' + msgCount : ''}</span>
       </div>
       <div class="badges">
         <span class="source-badge ${escapeHtml(source)}">${escapeHtml(source)}</span>
@@ -568,6 +1183,12 @@ async function setActiveSession() {
   $messages.innerHTML = ''
   renderSessions()
   localStorage.setItem('tc_last_session', currentSession.id)
+
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'))
+  document.querySelector('.tab-btn[data-tab="chat"]').classList.add('active')
+  document.getElementById('tab-chat').classList.add('active')
+  activeTab = 'chat'
 
   if (currentSession.id) {
     $messages.innerHTML = '<div class="msg assistant"><div class="loading"><span></span><span></span><span></span></div></div>'
@@ -799,12 +1420,10 @@ async function streamMessage(message, isInit) {
             const usage = event.usage || {}
             const inp = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0)
             const out = usage.output_tokens || 0
-            $costDisplay.textContent = `$${totalCost.toFixed(4)} · ${inp.toLocaleString()} in / ${out.toLocaleString()} out`
+            $costDisplay.textContent = `$${totalCost.toFixed(4)} \u00B7 ${inp.toLocaleString()} in / ${out.toLocaleString()} out`
           }
 
-        } catch {
-          // skip unparseable event
-        }
+        } catch {}
       }
     }
 
@@ -974,8 +1593,13 @@ $newChat.addEventListener('click', createSession)
 
 checkHealth()
 loadSessions()
+connectActivitySSE()
+checkActiveChats()
 setInterval(checkHealth, 15000)
 setInterval(loadSessions, 60000)
+setInterval(() => {
+  if (activeTab === 'metrics') loadMetrics()
+}, 30000)
 </script>
 </body>
 </html>

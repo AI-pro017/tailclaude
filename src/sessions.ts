@@ -25,17 +25,17 @@ export interface SessionIndexEntry {
 
 let indexing = false;
 
-export async function indexSessions(): Promise<void> {
-  if (indexing) return;
+export async function indexSessions(): Promise<number> {
+  if (indexing) return 0;
   indexing = true;
   try {
-    await doIndexSessions();
+    return await doIndexSessions();
   } finally {
     indexing = false;
   }
 }
 
-async function doIndexSessions(): Promise<void> {
+async function doIndexSessions(): Promise<number> {
   const entries: SessionIndexEntry[] = [];
 
   try {
@@ -114,12 +114,16 @@ async function doIndexSessions(): Promise<void> {
   let added = 0;
   for (const entry of entries) {
     try {
+      const existing = await state.get<SessionIndexEntry>({
+        scope: "session_index",
+        key: entry.id,
+      });
       await state.set({
         scope: "session_index",
         key: entry.id,
         data: entry,
       });
-      added++;
+      if (!existing) added++;
     } catch {
       // continue persisting remaining entries
     }
@@ -129,6 +133,8 @@ async function doIndexSessions(): Promise<void> {
     total: entries.length,
     added,
   }).catch(() => {});
+
+  return entries.length;
 }
 
 export async function getSessionIndex(): Promise<SessionIndexEntry[]> {

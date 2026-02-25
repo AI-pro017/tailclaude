@@ -33,12 +33,14 @@ export const useApi = <TBody = unknown>(
   });
 };
 
+let eventCounter = 0;
+
 export const useEvent = <TData = unknown>(
   topic: string,
   handler: (data: TData, ctx: Context) => Promise<void>,
   description?: string,
 ) => {
-  const function_id = `event::${topic}::handler`;
+  const function_id = `event::${topic}::handler::${++eventCounter}`;
 
   iii.registerFunction({ id: function_id, description }, (data) =>
     handler(data as TData, getContext()),
@@ -55,7 +57,7 @@ export const emit = async <TData = unknown>(
   topic: string,
   data: TData,
 ): Promise<void> => {
-  iii.triggerVoid("emit", { topic, data });
+  iii.triggerVoid("publish", { topic, data });
 };
 
 export const useCron = (
