@@ -154,21 +154,18 @@ useEvent(
   "Activity feed + traces: chat stopped",
 );
 
-let lastSessionTotal = 0;
-
 useEvent(
   "session::indexed",
   async (data: { total: number; added: number }) => {
-    if (data.total !== lastSessionTotal) {
+    if (data.added > 0) {
       pushActivity(
         "session_indexed",
-        `Sessions indexed: ${data.total} found, ${data.added} new`,
+        `Sessions indexed: ${data.added} new (${data.total} total)`,
         { total: data.total, added: data.added },
       );
-      lastSessionTotal = data.total;
     }
   },
-  "Activity feed: session indexed (only on change)",
+  "Activity feed: session indexed (only when new sessions found)",
 );
 
 useEvent(

@@ -114,12 +114,16 @@ async function doIndexSessions(): Promise<void> {
   let added = 0;
   for (const entry of entries) {
     try {
+      const existing = await state.get<SessionIndexEntry>({
+        scope: "session_index",
+        key: entry.id,
+      });
       await state.set({
         scope: "session_index",
         key: entry.id,
         data: entry,
       });
-      added++;
+      if (!existing) added++;
     } catch {
       // continue persisting remaining entries
     }
