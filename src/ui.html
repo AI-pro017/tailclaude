@@ -129,6 +129,7 @@ html,body{height:100%;font-family:'Lora',Georgia,serif;background:var(--bg);colo
 .activity-icon.chat_completed{background:#1f2a1f;color:var(--success)}
 .activity-icon.chat_stopped{background:#2a1f18;color:var(--accent)}
 .activity-icon.session_indexed{background:var(--border);color:var(--muted)}
+.activity-icon.worker_started{background:#1f2a1f;color:var(--success)}
 .activity-icon.cleanup{background:var(--border);color:var(--muted)}
 .activity-icon.alert{background:#2a1f18;color:var(--accent)}
 .activity-item .activity-body{flex:1;min-width:0}
@@ -672,6 +673,7 @@ const ACTIVITY_ICONS = {
   chat_completed: '\u2713',
   chat_stopped: '\u25A0',
   session_indexed: '\u2261',
+  worker_started: '\u2605',
   cleanup: '\u2672',
   alert: '\u26A0'
 }
@@ -745,13 +747,14 @@ function renderBarChart(days) {
     return
   }
   const maxCost = Math.max(...days.map(d => d.totalCost || 0), 0.001)
+  const maxBarHeight = 70
   chart.innerHTML = days.map(d => {
-    const pct = ((d.totalCost || 0) / maxCost * 100).toFixed(0)
+    const height = Math.max(2, Math.round((d.totalCost || 0) / maxCost * maxBarHeight))
     const label = d.date.slice(5)
     const val = '$' + (d.totalCost || 0).toFixed(3)
     return `<div class="bar-col">
       <div class="bar-value">${val}</div>
-      <div class="bar" style="height:${pct}%"></div>
+      <div class="bar" style="height:${height}px"></div>
       <div class="bar-label">${label}</div>
     </div>`
   }).join('')
