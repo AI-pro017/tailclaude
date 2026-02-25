@@ -152,10 +152,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .metric-card:hover{border-color:color-mix(in srgb,var(--metric-color) 40%,transparent)}
 .metric-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
 .metric-info{display:flex;flex-direction:column;gap:2px}
-.metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:500}
+.metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:500;display:flex;align-items:center;gap:6px}
+.metric-label::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--metric-color);opacity:.7;animation:blink 2s infinite}
 .metric-value{font-size:28px;font-weight:700;letter-spacing:-.02em;color:var(--metric-color);transition:color .3s}
 .metric-unit{font-size:13px;font-weight:400;color:var(--muted);margin-left:2px}
-.metric-stats{display:flex;gap:12px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.metric-stats{display:flex;gap:14px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;flex-shrink:0}
 .metric-stat{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
 .metric-stat-val{font-size:12px;font-weight:600;color:var(--text)}
 .metric-chart{height:80px;position:relative;margin-top:4px}
@@ -164,9 +165,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .metric-chart .line{transition:d .4s ease}
 .metric-chart .grid-line{stroke:var(--border);stroke-width:.5;stroke-dasharray:3,3}
 .metric-chart .dot{transition:all .3s ease}
-.metric-pulse{position:absolute;top:16px;right:16px;width:8px;height:8px;border-radius:50%;background:var(--metric-color)}
-.metric-pulse::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1.5px solid var(--metric-color);animation:pulse 2s ease-out infinite;opacity:0}
-@keyframes pulse{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.5);opacity:0}}
+.metric-pulse{display:none}
 .metrics-refresh{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:12px}
 .metrics-refresh .refresh-dot{width:6px;height:6px;border-radius:50%;background:var(--success);animation:blink 2s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
@@ -320,7 +319,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         <h3>System Metrics</h3>
         <div class="metrics-grid">
           <div class="metric-card" style="--metric-color:#c084fc" id="cardMemory">
-            <div class="metric-pulse"></div>
             <div class="metric-header">
               <div class="metric-info">
                 <span class="metric-label">Memory RSS</span>
@@ -336,7 +334,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             <div class="metric-time-axis" id="timeMemory"></div>
           </div>
           <div class="metric-card" style="--metric-color:#60a5fa" id="cardCpu">
-            <div class="metric-pulse"></div>
             <div class="metric-header">
               <div class="metric-info">
                 <span class="metric-label">CPU Usage</span>
@@ -352,7 +349,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             <div class="metric-time-axis" id="timeCpu"></div>
           </div>
           <div class="metric-card" style="--metric-color:#fb923c" id="cardLag">
-            <div class="metric-pulse"></div>
             <div class="metric-header">
               <div class="metric-info">
                 <span class="metric-label">Event Loop Lag</span>
@@ -368,7 +364,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             <div class="metric-time-axis" id="timeLag"></div>
           </div>
           <div class="metric-card" style="--metric-color:#4ade80" id="cardChats">
-            <div class="metric-pulse"></div>
             <div class="metric-header">
               <div class="metric-info">
                 <span class="metric-label">Active Chats</span>
