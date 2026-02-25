@@ -354,8 +354,13 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
 
               if (event.type === "result") {
                 totalCost = event.cost_usd ?? event.total_cost_usd ?? totalCost;
-                inputTokens = event.input_tokens ?? inputTokens;
-                outputTokens = event.output_tokens ?? outputTokens;
+                const usage = event.usage || {};
+                inputTokens =
+                  (usage.input_tokens || 0) +
+                    (usage.cache_read_input_tokens || 0) +
+                    (usage.cache_creation_input_tokens || 0) || inputTokens;
+                outputTokens =
+                  usage.output_tokens || event.output_tokens || outputTokens;
               }
 
               writeChatEvent(requestId, eventIndex++, event);
@@ -382,8 +387,13 @@ function handleChat(req: IncomingMessage, res: ServerResponse): void {
               if (event.session_id) lastSessionId = event.session_id;
               if (event.type === "result") {
                 totalCost = event.cost_usd ?? event.total_cost_usd ?? totalCost;
-                inputTokens = event.input_tokens ?? inputTokens;
-                outputTokens = event.output_tokens ?? outputTokens;
+                const usage = event.usage || {};
+                inputTokens =
+                  (usage.input_tokens || 0) +
+                    (usage.cache_read_input_tokens || 0) +
+                    (usage.cache_creation_input_tokens || 0) || inputTokens;
+                outputTokens =
+                  usage.output_tokens || event.output_tokens || outputTokens;
               }
               writeChatEvent(requestId, eventIndex++, event);
               safeWrite(`data: ${JSON.stringify(event)}\n\n`);

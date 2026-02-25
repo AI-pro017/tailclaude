@@ -57,7 +57,7 @@ export const emit = async <TData = unknown>(
   topic: string,
   data: TData,
 ): Promise<void> => {
-  iii.triggerVoid("emit", { topic, data });
+  iii.triggerVoid("publish", { topic, data });
 };
 
 export const useCron = (

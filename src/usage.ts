@@ -27,45 +27,30 @@ export async function incrementUsage(
   const today = todayKey();
 
   try {
-    const ops = [
-      { type: "increment" as const, path: "requestCount", by: 1 },
-      { type: "increment" as const, path: "totalCost", by: cost },
-      { type: "increment" as const, path: "totalInputTokens", by: inputTokens },
-      {
-        type: "increment" as const,
-        path: "totalOutputTokens",
-        by: outputTokens,
-      },
-    ];
-
-    const result = await state.update<DailyUsage>({
+    const existing = await state.get<DailyUsage>({
       scope: SCOPE,
       key: today,
-      ops,
     });
 
-    if (!result) {
-      const existing = await state.get<DailyUsage>({
-        scope: SCOPE,
-        key: today,
-      });
-      if (existing) {
-        await state.update<DailyUsage>({ scope: SCOPE, key: today, ops });
-      } else {
-        await state.set({
-          scope: SCOPE,
-          key: today,
-          data: {
-            _key: today,
-            date: today,
-            requestCount: 1,
-            totalCost: cost,
-            totalInputTokens: inputTokens,
-            totalOutputTokens: outputTokens,
-          },
-        });
-      }
-    }
+    const data: DailyUsage = existing
+      ? {
+          _key: today,
+          date: today,
+          requestCount: existing.requestCount + 1,
+          totalCost: existing.totalCost + cost,
+          totalInputTokens: existing.totalInputTokens + inputTokens,
+          totalOutputTokens: existing.totalOutputTokens + outputTokens,
+        }
+      : {
+          _key: today,
+          date: today,
+          requestCount: 1,
+          totalCost: cost,
+          totalInputTokens: inputTokens,
+          totalOutputTokens: outputTokens,
+        };
+
+    await state.set({ scope: SCOPE, key: today, data });
   } catch (e) {
     logger.error("Failed to increment usage", {
       error: (e as Error)?.message,
