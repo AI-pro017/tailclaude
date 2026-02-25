@@ -212,8 +212,15 @@ useCron(
   "Cleanup old usage and trace data every 6 hours",
 );
 
+pushActivity("session_indexed", "TailClaude worker started", {});
+
 indexSessions()
-  .then(() => backfillSessionCosts())
+  .then((count) => {
+    pushActivity("session_indexed", `Found ${count} Claude Code sessions`, {
+      total: count,
+    });
+    return backfillSessionCosts();
+  })
   .then((result) => {
     if (result.sessions > 0) {
       pushActivity(
