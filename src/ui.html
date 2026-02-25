@@ -996,7 +996,7 @@ async function loadSettings() {
     const servers = Array.isArray(data.mcpServers) ? data.mcpServers : []
     if (servers.length > 0) {
       $mcpList.innerHTML = servers.map(s =>
-        `<div class="mcp-item"><span class="dot"></span><div><strong>${escapeHtml(s.name)}</strong><div style="font-size:10px;color:var(--muted);margin-top:1px">${escapeHtml(s.status || '')}${s.source ? ' &middot; ' + escapeHtml(s.source) : ''}</div></div></div>`
+        `<div class="mcp-item"><span class="dot"></span><div><strong>${escapeHtml(s.name)}</strong><div style="font-size:10px;color:var(--muted);margin-top:1px">${escapeHtml(s.command || '')}${s.source ? ' &middot; ' + escapeHtml(s.source) : ''}</div></div></div>`
       ).join('')
     } else {
       $mcpList.innerHTML = '<div style="color:var(--muted)">No MCP servers configured</div>'
@@ -1012,6 +1012,7 @@ async function loadSettings() {
     }
   } catch {
     $('#mcpList').innerHTML = '<div style="color:var(--danger)">Failed to load settings</div>'
+    $('#pluginList').innerHTML = '<div style="color:var(--danger)">Failed to load settings</div>'
   }
 }
 
