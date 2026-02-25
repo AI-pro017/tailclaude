@@ -739,35 +739,81 @@ async function handleQr(
   }
 }
 
+function readJsonFile(path: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 async function handleSettings(
   _req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  let mcpServers: unknown = [];
+  const home = homedir();
+  const mcpServers: Array<{ name: string; source: string; status: string }> =
+    [];
+  const plugins: Array<{
+    name: string;
+    version: string;
+    scope: string;
+  }> = [];
 
-  try {
-    const result = await new Promise<string>((resolve, reject) => {
-      execFile(
-        CLAUDE_PATH,
-        ["mcp", "list", "--json"],
-        { timeout: 10_000, env: cleanEnv() },
-        (err, stdout) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          resolve(stdout);
-        },
-      );
-    });
-    mcpServers = JSON.parse(result);
-  } catch {}
+  const claudeJson = readJsonFile(join(home, ".claude.json"));
+  if (claudeJson?.mcpServers && typeof claudeJson.mcpServers === "object") {
+    for (const [name, config] of Object.entries(
+      claudeJson.mcpServers as Record<string, unknown>,
+    )) {
+      const cfg = config as Record<string, unknown>;
+      const cmd = cfg.command || cfg.url || "";
+      mcpServers.push({
+        name,
+        source: "~/.claude.json",
+        status: String(cmd).slice(0, 60),
+      });
+    }
+  }
+
+  const settingsJson = readJsonFile(join(home, ".claude", "settings.json"));
+  if (settingsJson?.mcpServers && typeof settingsJson.mcpServers === "object") {
+    for (const [name, config] of Object.entries(
+      settingsJson.mcpServers as Record<string, unknown>,
+    )) {
+      const cfg = config as Record<string, unknown>;
+      const cmd = cfg.command || cfg.url || "";
+      mcpServers.push({
+        name,
+        source: "~/.claude/settings.json",
+        status: String(cmd).slice(0, 60),
+      });
+    }
+  }
+
+  const pluginsJson = readJsonFile(
+    join(home, ".claude", "plugins", "installed_plugins.json"),
+  );
+  if (pluginsJson?.plugins && typeof pluginsJson.plugins === "object") {
+    for (const [name, entries] of Object.entries(
+      pluginsJson.plugins as Record<string, unknown>,
+    )) {
+      const arr = Array.isArray(entries) ? entries : [entries];
+      for (const entry of arr) {
+        const e = entry as Record<string, unknown>;
+        plugins.push({
+          name,
+          version: String(e.version || "unknown"),
+          scope: String(e.scope || "user"),
+        });
+      }
+    }
+  }
 
   res.writeHead(200, {
     ...corsHeaders(),
     "content-type": "application/json",
   });
-  res.end(JSON.stringify({ mcpServers }));
+  res.end(JSON.stringify({ mcpServers, plugins }));
 }
 
 async function handleHealth(
