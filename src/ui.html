@@ -45,9 +45,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .source-badge{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:600;text-transform:uppercase}
 .source-badge.web{background:#1e3a5f;color:#60a5fa}
 .source-badge.terminal{background:#1a3a2a;color:#4ade80}
-.tailscale-url{margin:0 12px 12px;padding:8px 10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);word-break:break-all;display:none}
+.tailscale-url{margin:0 12px 12px;padding:8px 10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);word-break:break-all;display:none;cursor:pointer;position:relative;overflow:hidden}
 .tailscale-url.visible{display:block}
-.tailscale-url a{color:var(--accent);text-decoration:none}
+.tailscale-url a{color:var(--accent);text-decoration:none;filter:blur(4px);transition:filter .2s ease}
+.tailscale-url:hover a{filter:none}
+.tailscale-url .url-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);pointer-events:none;transition:opacity .2s}
+.tailscale-url:hover .url-hint{opacity:0}
 
 .main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
 .alert-banner{display:none;padding:8px 16px;background:#7f1d1d;color:#fca5a5;font-size:12px;font-weight:500;text-align:center;border-bottom:1px solid #991b1b;animation:slideDown .2s ease}
@@ -1048,15 +1051,17 @@ async function checkHealth() {
     }
 
     if (data.publishedUrl) {
-      $tailscaleUrl.textContent = ''
+      $tailscaleUrl.innerHTML = ''
       const a = document.createElement('a')
       a.href = data.publishedUrl
       a.target = '_blank'
       a.rel = 'noopener noreferrer'
       a.textContent = data.publishedUrl
-      a.style.color = 'var(--accent)'
-      a.style.textDecoration = 'none'
       $tailscaleUrl.appendChild(a)
+      const hint = document.createElement('span')
+      hint.className = 'url-hint'
+      hint.textContent = 'Hover to reveal Tailscale URL'
+      $tailscaleUrl.appendChild(hint)
       $tailscaleUrl.classList.add('visible')
     }
   } catch {
