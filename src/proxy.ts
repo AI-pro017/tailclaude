@@ -785,7 +785,7 @@ async function handleHealth(
     ]);
   } catch {}
 
-  const workerMetrics = metricsCollector.collect();
+  const workerMetrics = getMetrics();
 
   res.writeHead(200, {
     ...corsHeaders(),
@@ -794,7 +794,7 @@ async function handleHealth(
   res.end(
     JSON.stringify({
       status: "ok",
-      version: "0.1.0",
+      version: "0.2.0",
       uptime: process.uptime(),
       publishedUrl: tsUrl.includes("tailclaude.local") ? null : tsUrl,
       engine: {
