@@ -4,6 +4,10 @@
 
 # TailClaude
 
+<p align="center">
+  <img src="assets/demo.gif" alt="TailClaude Demo" width="100%" />
+</p>
+
 **Claude Code from any browser. No SSH. No terminal. Just a URL.**
 
 TailClaude publishes a full Claude Code web interface to every device on your Tailscale tailnet — or the public internet via [Tailscale Funnel](https://tailscale.com/kb/1223/funnel). Powered by the [iii engine](https://github.com/iii-hq/iii).
