@@ -119,7 +119,7 @@ Tailscale handles the secure connection. TailClaude handles everything else.
 **3 commands. Under 60 seconds.**
 
 ```bash
-git clone https://github.com/rohitg00/tailclaude.git
+git clone https://github.com/AI-pro017/tailclaude.git
 cd tailclaude
 npm install
 iii -c iii-config.yaml
